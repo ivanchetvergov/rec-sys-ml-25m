@@ -217,20 +217,20 @@ def evaluate_recommendations(
             ndcgs.append(ndcg_at_k(recommended, relevant, k))
 
         # Average metrics
-        results[f"precision@{k}"] = np.mean(precisions) if precisions else 0.0
-        results[f"recall@{k}"] = np.mean(recalls) if recalls else 0.0
-        results[f"ndcg@{k}"] = np.mean(ndcgs) if ndcgs else 0.0
-        results[f"map@{k}"] = mean_average_precision_at_k(recommendations, ground_truth, k)
-        results[f"coverage@{k}"] = coverage(recommendations, catalog, k)
+        results[f"precision_at_{k}"] = np.mean(precisions) if precisions else 0.0
+        results[f"recall_at_{k}"] = np.mean(recalls) if recalls else 0.0
+        results[f"ndcg_at_{k}"] = np.mean(ndcgs) if ndcgs else 0.0
+        results[f"map_at_{k}"] = mean_average_precision_at_k(recommendations, ground_truth, k)
+        results[f"coverage_at_{k}"] = coverage(recommendations, catalog, k)
 
     # Log summary
     logger.info(f"Evaluated {len(recommendations)} users with {len(k_values)} K values")
     for k in k_values:
         logger.info(
-            f"  K={k}: P={results[f'precision@{k}']:.4f}, "
-            f"R={results[f'recall@{k}']:.4f}, "
-            f"NDCG={results[f'ndcg@{k}']:.4f}, "
-            f"Coverage={results[f'coverage@{k}']:.4f}"
+            f"  K={k}: P={results[f'precision_at_{k}']:.4f}, "
+            f"R={results[f'recall_at_{k}']:.4f}, "
+            f"NDCG={results[f'ndcg_at_{k}']:.4f}, "
+            f"Coverage={results[f'coverage_at_{k}']:.4f}"
         )
 
     return results

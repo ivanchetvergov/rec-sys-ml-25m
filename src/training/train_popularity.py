@@ -309,20 +309,20 @@ def train_and_evaluate(
         for k in k_values:
             logger.info(
                 f"  K={k}: "
-                f"P={metrics[f'precision@{k}']:.4f}, "
-                f"R={metrics[f'recall@{k}']:.4f}, "
-                f"NDCG={metrics[f'ndcg@{k}']:.4f}, "
-                f"Coverage={metrics[f'coverage@{k}']:.4f}"
+                f"P={metrics[f'precision_at_{k}']:.4f}, "
+                f"R={metrics[f'recall_at_{k}']:.4f}, "
+                f"NDCG={metrics[f'ndcg_at_{k}']:.4f}, "
+                f"Coverage={metrics[f'coverage_at_{k}']:.4f}"
             )
         logger.info("")
         logger.info("Test metrics:")
         for k in k_values:
             logger.info(
                 f"  K={k}: "
-                f"P={test_metrics[f'precision@{k}']:.4f}, "
-                f"R={test_metrics[f'recall@{k}']:.4f}, "
-                f"NDCG={test_metrics[f'ndcg@{k}']:.4f}, "
-                f"Coverage={test_metrics[f'coverage@{k}']:.4f}"
+                f"P={test_metrics[f'precision_at_{k}']:.4f}, "
+                f"R={test_metrics[f'recall_at_{k}']:.4f}, "
+                f"NDCG={test_metrics[f'ndcg_at_{k}']:.4f}, "
+                f"Coverage={test_metrics[f'coverage_at_{k}']:.4f}"
             )
         logger.info("=" * 80)
 
