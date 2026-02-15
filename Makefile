@@ -6,8 +6,9 @@ PIP = /Users/ivan/myvenv/bin/pip
 
 # Default dataset tag (use latest or set via environment variable)
 DATASET_TAG ?= ml_v_20260215_184134
+MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess train-popularity train-popularity-sample mlflow-ui clean
+.PHONY: help install preprocess train-popularity train-popularity-sample mlflow-ui mlflow-ui-alt mlflow-stop clean
 
 help:
 	@echo "Available commands:"
@@ -24,6 +25,8 @@ help:
 	@echo ""
 	@echo "Monitoring:"
 	@echo "  make mlflow-ui              - Start MLflow UI on http://localhost:5000"
+	@echo "  make mlflow-ui-alt          - Start MLflow UI on http://localhost:5001 (if 5000 is busy)"
+	@echo "  make mlflow-stop            - Stop all MLflow processes"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean                  - Clean processed data and artifacts"
@@ -54,9 +57,27 @@ train-popularity-sample:
 		--k-values 5 10 20
 
 mlflow-ui:
-	@echo "Starting MLflow UI at http://localhost:5000"
+	@echo "Checking if port $(MLFLOW_PORT) is available..."
+	@lsof -ti:$(MLFLOW_PORT) > /dev/null 2>&1 && \
+		echo "⚠️  Port $(MLFLOW_PORT) is already in use. Stopping existing process..." && \
+		kill -9 $$(lsof -ti:$(MLFLOW_PORT)) && \
+		sleep 1 || true
+	@echo "Starting MLflow UI at http://localhost:$(MLFLOW_PORT)"
 	@echo "Press Ctrl+C to stop"
-	cd $(shell pwd) && mlflow ui --host 0.0.0.0 --port 5000
+	@cd $(shell pwd) && mlflow ui --host 0.0.0.0 --port $(MLFLOW_PORT)
+
+mlflow-ui-alt:
+	@echo "Starting MLflow UI at http://localhost:5001 (alternative port)"
+	@echo "Press Ctrl+C to stop"
+	@lsof -ti:5001 > /dev/null 2>&1 && kill -9 $$(lsof -ti:5001) && sleep 1 || true
+	@cd $(shell pwd) && mlflow ui --host 0.0.0.0 --port 5001
+
+mlflow-stop:
+	@echo "Stopping all MLflow processes..."
+	@pkill -f "mlflow ui" || true
+	@lsof -ti:5000 > /dev/null 2>&1 && kill -9 $$(lsof -ti:5000) || true
+	@lsof -ti:5001 > /dev/null 2>&1 && kill -9 $$(lsof -ti:5001) || true
+	@echo "✓ All MLflow processes stopped"
 
 clean:
 	rm -rf data/processed/feature_store/*
