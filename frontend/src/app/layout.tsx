@@ -1,0 +1,20 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+    title: "RecSys",
+    description: "Movie recommendations",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <html lang="en">
+            <body>
+                <header className="border-b border-zinc-800 px-6 py-4">
+                    <span className="text-xl font-bold tracking-tight">🎬 RecSys</span>
+                </header>
+                <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
+            </body>
+        </html>
+    );
+}

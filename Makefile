@@ -8,7 +8,8 @@ PIP = /Users/ivan/myvenv/bin/pip
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess train-popularity train-popularity-sample mlflow-ui mlflow-ui-alt mlflow-stop clean
+.PHONY: help install preprocess train-popularity train-popularity-sample mlflow-ui mlflow-ui-alt mlflow-stop clean \
+        backend frontend web web-down
 
 help:
 	@echo "Available commands:"
@@ -18,6 +19,12 @@ help:
 	@echo ""
 	@echo "Data preparation:"
 	@echo "  make preprocess             - Run MovieLens preprocessing pipeline"
+	@echo ""
+	@echo "Web:"
+	@echo "  make backend                - Run FastAPI backend locally (port 8000)"
+	@echo "  make frontend               - Run Next.js frontend locally (port 3000)"
+	@echo "  make web                    - Run backend + frontend via Docker Compose"
+	@echo "  make web-down               - Stop Docker Compose"
 	@echo ""
 	@echo "Model training:"
 	@echo "  make train-popularity       - Train popularity baseline (full data)"
@@ -83,3 +90,18 @@ clean:
 	rm -rf data/processed/feature_store/*
 	rm -rf mlruns/
 	@echo "✓ Cleaned processed data and artifacts"
+
+# ─── Web ──────────────────────────────────────────────────────────────────────
+backend:
+	@echo "Starting FastAPI backend on http://localhost:8000"
+	cd backend && pip install -r requirements.txt -q && uvicorn app.main:app --reload --port 8000
+
+frontend:
+	@echo "Starting Next.js frontend on http://localhost:3000"
+	cd frontend && npm install && npm run dev
+
+web:
+	docker compose up --build
+
+web-down:
+	docker compose down

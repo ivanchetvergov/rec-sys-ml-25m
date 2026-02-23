@@ -1,0 +1,24 @@
+services:
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # монтируем feature store — бэкенд читает parquet напрямую
+      - ./data/processed/feature_store:/app/../data/processed/feature_store:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
