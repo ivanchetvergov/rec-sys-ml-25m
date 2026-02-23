@@ -4,6 +4,12 @@
 PYTHON = /Users/ivan/myvenv/bin/python
 PIP = /Users/ivan/myvenv/bin/pip
 
+# Node — auto-detect common macOS locations; override with: make frontend NPM=/path/to/npm
+NPM ?= $(shell command -v npm 2>/dev/null \
+         || ls /opt/homebrew/bin/npm 2>/dev/null \
+         || ls /usr/local/bin/npm 2>/dev/null \
+         || echo npm)
+
 # Default dataset tag (use latest or set via environment variable)
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
@@ -98,7 +104,7 @@ backend:
 
 frontend:
 	@echo "Starting Next.js frontend on http://localhost:3000"
-	cd frontend && npm install && npm run dev
+	cd frontend && $(NPM) install && $(NPM) run dev
 
 web:
 	docker compose up --build

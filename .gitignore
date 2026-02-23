@@ -1,65 +1,28 @@
-# Python
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
 *.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
 
-data/
-# Virtual Environments
+# Virtual environments
 venv/
+.venv/
 env/
 ENV/
-.venv
 recsys_env/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# MLflow
-mlruns/
-mlartifacts/
-
-# Data
-data/processed/
-data/raw/*.csv
-data/raw/*.tsv
-data/raw/*.gz
-
-# Models
-models/artifacts/
-*.pkl
-*.joblib
-*.pth
-*.onnx
-
-# FAISS
-*.faiss
-*.index
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# Type checking / linting
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
 
 # Testing
 .pytest_cache/
@@ -67,15 +30,68 @@ models/artifacts/
 htmlcov/
 .tox/
 
-# MyPy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
 
-# Logs
+# ─── Data & ML ────────────────────────────────────────────────────────────────
+# Raw datasets (большие CSV, не коммитим)
+data/raw/
+# Обработанные данные и feature store (генерируются пайплайном)
+data/processed/
+
+# MLflow артефакты
+mlruns/
+mlartifacts/
+
+# Сохранённые модели
+*.pkl
+*.joblib
+*.pth
+*.onnx
+*.faiss
+*.index
+
+# Логи обучения
+preprocessing.log
 *.log
 logs/
 
-# Environment
+# ─── Node.js / Next.js ────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+# npm / yarn / pnpm lockfiles — раскомментировать если нужно игнорировать
+# frontend/package-lock.json
+# frontend/yarn.lock
+
+# ─── Backend ──────────────────────────────────────────────────────────────────
+backend/__pycache__/
+backend/.pytest_cache/
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# Не игнорируем docker-compose.yml и Dockerfile'ы — они нужны в репо
+
+# ─── Environment & secrets ────────────────────────────────────────────────────
 .env
 .env.local
+.env.*.local
+!.env.example          # шаблон окружения коммитим
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Editors ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace

@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html lang="en">
             <body>
                 <header className="border-b border-zinc-800 px-6 py-4">
-                    <span className="text-xl font-bold tracking-tight">🎬 RecSys</span>
+                    <span className="text-xl font-bold tracking-tight">RecSys</span>
                 </header>
                 <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
             </body>
