@@ -1,0 +1,11 @@
+{
+  "model_type": "ALSRecommender",
+  "factors": 128,
+  "iterations": 20,
+  "regularization": 0.01,
+  "alpha": 15.0,
+  "confidence_mode": "linear",
+  "random_state": 42,
+  "n_users": 121637,
+  "n_items": 17695
+}

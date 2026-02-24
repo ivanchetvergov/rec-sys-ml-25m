@@ -1,0 +1,7 @@
+{
+  "model_type": "TwoStageRecommender",
+  "n_users": 121637,
+  "n_items": 17695,
+  "n_user_features": 7,
+  "n_item_features": 30
+}

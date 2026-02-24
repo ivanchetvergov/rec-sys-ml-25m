@@ -73,6 +73,12 @@ class PopularityService:
         logger.info(f"Loaded {len(movies):,} unique movies")
         return movies
 
+    def total_count(self) -> int:
+        """Total number of movies in the feature store."""
+        if self._movies is None:
+            self._movies = self._load()
+        return len(self._movies)
+
     def get_popular(self, limit: int = 20, offset: int = 0) -> list[dict]:
         """
         Return the top-`limit` most popular movies.
@@ -88,7 +94,7 @@ class PopularityService:
         if self._movies is None:
             self._movies = self._load()
 
-        limit = min(limit, 100)
+        limit = min(limit, 10_000)
         rows = self._movies.iloc[offset : offset + limit]
 
         return [

@@ -2,10 +2,11 @@
 
 import { MovieCard } from "@/components/MovieCard";
 import type { Movie } from "@/lib/api";
-import { useMemo, useState } from "react";
+import { fetchAllMovies } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
 
 interface Props {
-    movies: Movie[];
+    initialMovies?: Movie[];
     onSelect?: (movie: Movie) => void;
 }
 
@@ -106,7 +107,7 @@ function RangeInput({
     );
 }
 
-export function CatalogSection({ movies, onSelect }: Props) {
+export function CatalogSection({ initialMovies = [], onSelect }: Props) {
     const [query, setQuery] = useState("");
     const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
     const [yearMin, setYearMin] = useState<number | null>(null);
@@ -115,6 +116,20 @@ export function CatalogSection({ movies, onSelect }: Props) {
     const [minReviews, setMinReviews] = useState(0);
     const [sortBy, setSortBy] = useState<SortKey>("popularity");
     const [filtersOpen, setFiltersOpen] = useState(false);
+
+    // Full catalog — starts with server-provided slice, replaced by full fetch on mount
+    const [allMovies, setAllMovies] = useState<Movie[]>(initialMovies);
+    const [catalogLoading, setCatalogLoading] = useState(true);
+
+    useEffect(() => {
+        setCatalogLoading(true);
+        fetchAllMovies()
+            .then(setAllMovies)
+            .catch(() => { /* keep initialMovies on error */ })
+            .finally(() => setCatalogLoading(false));
+    }, []);
+
+    const movies = allMovies;
 
     // Derived ranges from dataset
     const { genres, yearRange } = useMemo(() => {
@@ -213,7 +228,9 @@ export function CatalogSection({ movies, onSelect }: Props) {
                 <div>
                     <h2 className="text-xl font-bold text-white">Browse Catalog</h2>
                     <p className="text-sm text-zinc-500 mt-0.5">
-                        {filtered.length} of {movies.length} movies
+                        {catalogLoading
+                            ? "Loading full catalog…"
+                            : `${filtered.length.toLocaleString()} of ${movies.length.toLocaleString()} movies`}
                     </p>
                 </div>
                 {anyFilterActive && (
@@ -406,7 +423,11 @@ export function CatalogSection({ movies, onSelect }: Props) {
             )}
 
             {/* ── Grid ───────────────────────────────────────────────── */}
-            {filtered.length === 0 ? (
+            {catalogLoading && movies.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-zinc-500 text-sm">
+                    Loading catalog…
+                </div>
+            ) : filtered.length === 0 ? (
                 <div className="py-20 text-center">
                     <p className="text-zinc-400 text-base font-semibold mb-2">No movies match your filters</p>
                     <button onClick={clearAll} className="text-sm text-zinc-500 hover:text-white transition-colors underline underline-offset-2">

@@ -17,6 +17,7 @@ class Movie(BaseModel):
 class PopularMoviesResponse(BaseModel):
     total_returned: int
     offset: int
+    total_available: Optional[int] = None
     movies: list[Movie]
 
 

@@ -15,6 +15,7 @@ export interface Movie {
 export interface PopularMoviesResponse {
     total_returned: number;
     offset: number;
+    total_available: number | null;
     movies: Movie[];
 }
 
@@ -38,6 +39,19 @@ export async function fetchPopularMovies(limit = 20, offset = 0): Promise<Popula
     });
     if (!res.ok) throw new Error("Failed to fetch popular movies");
     return res.json();
+}
+
+/**
+ * Fetch the full movie catalog from the backend (no ISR cache — client-side use only).
+ * Returns all movies sorted by popularity.
+ */
+export async function fetchAllMovies(): Promise<Movie[]> {
+    const res = await fetch(`${API_URL}/api/movies/popular?limit=20000&offset=0`, {
+        cache: "no-store",
+    });
+    if (!res.ok) throw new Error("Failed to fetch catalog");
+    const data: PopularMoviesResponse = await res.json();
+    return data.movies;
 }
 
 /** Fetch TMDB-enriched details for a single movie. Never throws — returns null on error. */
