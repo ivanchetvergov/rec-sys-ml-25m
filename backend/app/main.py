@@ -1,9 +1,12 @@
 import logging
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.movies import router as movies_router
+
+load_dotenv()  # loads backend/.env if present
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s – %(message)s")
 

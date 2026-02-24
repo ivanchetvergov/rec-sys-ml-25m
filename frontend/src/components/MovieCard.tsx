@@ -3,6 +3,7 @@ import type { Movie } from "@/lib/api";
 interface Props {
     movie: Movie;
     rank?: number;
+    onSelect?: (movie: Movie) => void;
 }
 
 const CARD_GRADIENTS = [
@@ -16,7 +17,7 @@ const CARD_GRADIENTS = [
     "135deg, #373b44 0%, #4286f4 100%",
 ];
 
-export function MovieCard({ movie, rank }: Props) {
+export function MovieCard({ movie, rank, onSelect }: Props) {
     const genres = movie.genres?.split("|").slice(0, 2) ?? [];
     const gradient = CARD_GRADIENTS[movie.id % CARD_GRADIENTS.length];
 
@@ -24,6 +25,8 @@ export function MovieCard({ movie, rank }: Props) {
         <div
             className="relative rounded overflow-hidden cursor-pointer group"
             style={{ width: 220 }}
+            onClick={() => onSelect?.(movie)}
+            role={onSelect ? "button" : undefined}
         >
             {/* Poster placeholder — 2:3 aspect ratio */}
             <div

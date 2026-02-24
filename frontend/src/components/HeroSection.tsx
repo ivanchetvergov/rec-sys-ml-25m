@@ -3,6 +3,7 @@ import type { Movie } from "@/lib/api";
 interface Props {
     movie: Movie;
     rank?: number;
+    onSelect?: (movie: Movie) => void;
 }
 
 const HERO_GRADIENTS = [
@@ -18,7 +19,7 @@ function getGradient(id: number): string {
     return HERO_GRADIENTS[id % HERO_GRADIENTS.length];
 }
 
-export function HeroSection({ movie, rank = 1 }: Props) {
+export function HeroSection({ movie, rank = 1, onSelect }: Props) {
     const genres = movie.genres?.split("|") ?? [];
     const gradient = getGradient(movie.id);
 
@@ -106,6 +107,7 @@ export function HeroSection({ movie, rank = 1 }: Props) {
                         Play
                     </button>
                     <button
+                        onClick={() => onSelect?.(movie)}
                         className="flex items-center gap-2 px-7 py-3 rounded font-bold text-base text-white transition-colors hover:bg-white/30"
                         style={{ background: "rgba(109,109,110,0.7)" }}
                     >

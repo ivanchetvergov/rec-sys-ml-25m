@@ -9,9 +9,10 @@ interface Props {
     badge?: string;
     movies: Movie[];
     showRank?: boolean;
+    onSelect?: (movie: Movie) => void;
 }
 
-export function MovieRow({ title, badge, movies, showRank = false }: Props) {
+export function MovieRow({ title, badge, movies, showRank = false, onSelect }: Props) {
     const rowRef = useRef<HTMLDivElement>(null);
 
     const scroll = (direction: "left" | "right") => {
@@ -55,7 +56,7 @@ export function MovieRow({ title, badge, movies, showRank = false }: Props) {
                 >
                     {movies.map((movie, i) => (
                         <div key={movie.id} style={{ scrollSnapAlign: "start", flexShrink: 0 }}>
-                            <MovieCard movie={movie} rank={showRank ? i + 1 : undefined} />
+                            <MovieCard movie={movie} rank={showRank ? i + 1 : undefined} onSelect={onSelect} />
                         </div>
                     ))}
                 </div>

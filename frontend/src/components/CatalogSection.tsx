@@ -1,11 +1,14 @@
+"use client";
+
 import { MovieCard } from "@/components/MovieCard";
 import type { Movie } from "@/lib/api";
 
 interface Props {
     movies: Movie[];
+    onSelect?: (movie: Movie) => void;
 }
 
-export function CatalogSection({ movies }: Props) {
+export function CatalogSection({ movies, onSelect }: Props) {
     return (
         <section id="catalog" className="px-12 pb-20">
             {/* Header */}
@@ -64,7 +67,7 @@ export function CatalogSection({ movies }: Props) {
                 }}
             >
                 {movies.map((movie, i) => (
-                    <MovieCard key={movie.id} movie={movie} rank={i + 1} />
+                    <MovieCard key={movie.id} movie={movie} rank={i + 1} onSelect={onSelect} />
                 ))}
             </div>
 

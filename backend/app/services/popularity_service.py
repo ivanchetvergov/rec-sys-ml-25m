@@ -28,6 +28,7 @@ _MOVIE_COLS = [
 # Relative path inside the container / local run
 _FEATURE_STORE = Path(__file__).parents[3] / "data" / "processed" / "feature_store"
 _DATASET_TAG = "ml_v_20260215_184134"
+_LINKS_CSV = Path(__file__).parents[3] / "data" / "raw" / "ml-25m" / "links.csv"
 
 
 class PopularityService:
@@ -59,6 +60,16 @@ class PopularityService:
             .reset_index(drop=True)
         )
 
+        # Merge TMDB / IMDB links
+        if _LINKS_CSV.exists():
+            links = pd.read_csv(_LINKS_CSV, dtype={"imdbId": str})
+            movies = movies.merge(links[["movieId", "imdbId", "tmdbId"]], on="movieId", how="left")
+            logger.info("Merged links.csv — tmdb_id / imdb_id available")
+        else:
+            movies["imdbId"] = None
+            movies["tmdbId"] = None
+            logger.warning(f"links.csv not found at {_LINKS_CSV}")
+
         logger.info(f"Loaded {len(movies):,} unique movies")
         return movies
 
@@ -89,9 +100,20 @@ class PopularityService:
                 "avg_rating": round(float(row.movie_avg_rating), 2) if pd.notna(row.movie_avg_rating) else None,
                 "num_ratings": int(row.movie_num_ratings) if pd.notna(row.movie_num_ratings) else None,
                 "popularity_score": round(float(row.movie_popularity), 4) if pd.notna(row.movie_popularity) else None,
+                "tmdb_id": int(row.tmdbId) if pd.notna(row.tmdbId) else None,
+                "imdb_id": str(row.imdbId) if pd.notna(row.imdbId) else None,
             }
             for row in rows.itertuples(index=False)
         ]
+
+    def get_tmdb_id(self, movie_id: int) -> Optional[int]:
+        """Return the TMDB id for a given MovieLens movieId, or None."""
+        if self._movies is None:
+            self._movies = self._load()
+        row = self._movies[self._movies["movieId"] == movie_id]
+        if row.empty or pd.isna(row.iloc[0]["tmdbId"]):
+            return None
+        return int(row.iloc[0]["tmdbId"])
 
 
 # ── Module-level singleton ──────────────────────────────────────────────────
