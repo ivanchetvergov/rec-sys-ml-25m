@@ -9,6 +9,7 @@ Model not found on disk: falls back to PopularityService with a warning.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -16,8 +17,9 @@ from typing import List, Optional
 
 import pandas as pd
 
-# ── Make project root importable so we can load src.models ────────────────
-_PROJECT_ROOT = Path(__file__).parents[3]
+# PROJECT_ROOT env var is set in docker-compose to /app.
+# Locally falls back to 3 levels up: backend/app/services/ -> project root
+_PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 

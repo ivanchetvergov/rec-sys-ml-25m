@@ -6,6 +6,7 @@ No database required: the parquet file produced by the ML pipeline already
 contains per-movie aggregates (avg_rating, num_ratings, popularity score).
 """
 import logging
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,10 @@ from typing import Optional
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+# PROJECT_ROOT env var is set in docker-compose to /app.
+# Locally falls back to 3 levels up: backend/app/services/ -> project root
+_PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 
 # Columns we actually need — avoids loading 56-column parquet into memory
 _MOVIE_COLS = [
@@ -26,9 +31,9 @@ _MOVIE_COLS = [
 ]
 
 # Relative path inside the container / local run
-_FEATURE_STORE = Path(__file__).parents[2] / "data" / "processed" / "feature_store"
+_FEATURE_STORE = _PROJECT_ROOT / "data" / "processed" / "feature_store"
 _DATASET_TAG = "ml_v_20260215_184134"
-_LINKS_CSV = Path(__file__).parents[2] / "data" / "raw" / "ml-25m" / "links.csv"
+_LINKS_CSV = _PROJECT_ROOT / "data" / "raw" / "ml-25m" / "links.csv"
 
 
 class PopularityService:

@@ -4,12 +4,18 @@ services:
     expose:
       - '8000'
     volumes:
-      # монтируем feature store — бэкенд читает parquet напрямую
+      # feature store — backend reads parquet directly
       - ./data/processed/feature_store:/app/data/processed/feature_store:ro
-      # links.csv нужен для tmdb_id / imdb_id
+      # links.csv for tmdb_id / imdb_id
       - ./data/raw/ml-25m/links.csv:/app/data/raw/ml-25m/links.csv:ro
+      # trained two-stage model artifacts
+      - ./data/models:/app/data/models:ro
+      # src package — needed for TwoStageRecommender imports
+      - ./src:/app/src:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - PROJECT_ROOT=/app
+      - PYTHONPATH=/app
     networks:
       - app-network
     restart: unless-stopped
