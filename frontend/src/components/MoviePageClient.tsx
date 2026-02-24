@@ -24,29 +24,32 @@ export function MoviePageClient({ movies }: Props) {
             {/* Hero */}
             {hero && <HeroSection movie={hero} rank={1} onSelect={setSelected} />}
 
-            {/* Trending row */}
-            <div className="mt-[-80px] relative z-10 pb-4">
-                <MovieRow
-                    title="Trending Now"
-                    badge="TOP 20"
-                    movies={trending}
-                    showRank
-                    onSelect={setSelected}
-                />
+            {/* Constrained content area */}
+            <div className="mx-auto" style={{ maxWidth: 1440, padding: "0 40px" }}>
+                {/* Trending row */}
+                <div className="mt-[-80px] relative z-10 pb-4">
+                    <MovieRow
+                        title="Trending Now"
+                        badge="TOP 20"
+                        movies={trending}
+                        showRank
+                        onSelect={setSelected}
+                    />
+                </div>
+
+                {/* Recommended row */}
+                <section id="popular" className="pb-4">
+                    <MovieRow
+                        title="Recommended for You"
+                        badge="NEW"
+                        movies={recommended}
+                        onSelect={setSelected}
+                    />
+                </section>
+
+                {/* Catalog */}
+                <CatalogSection movies={catalog} onSelect={setSelected} />
             </div>
-
-            {/* Recommended row */}
-            <section id="popular" className="pb-4">
-                <MovieRow
-                    title="Recommended for You"
-                    badge="NEW"
-                    movies={recommended}
-                    onSelect={setSelected}
-                />
-            </section>
-
-            {/* Catalog */}
-            <CatalogSection movies={catalog} onSelect={setSelected} />
 
             {/* Detail modal */}
             {selected && (

@@ -24,7 +24,7 @@ export function MovieRow({ title, badge, movies, showRank = false, onSelect }: P
     return (
         <section className="mb-10">
             {/* Section header */}
-            <div className="flex items-center gap-3 mb-3 px-12">
+            <div className="flex items-center gap-3 mb-4">
                 <h2 className="text-lg font-bold text-white">{title}</h2>
                 {badge && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded"
@@ -51,7 +51,7 @@ export function MovieRow({ title, badge, movies, showRank = false, onSelect }: P
                 {/* Cards container */}
                 <div
                     ref={rowRef}
-                    className="flex gap-2 overflow-x-auto scrollbar-hide px-12"
+                    className="flex gap-3 overflow-x-auto scrollbar-hide"
                     style={{ scrollSnapType: "x mandatory" }}
                 >
                     {movies.map((movie, i) => (

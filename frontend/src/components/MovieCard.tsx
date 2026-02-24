@@ -1,4 +1,8 @@
+"use client";
+
 import type { Movie } from "@/lib/api";
+import { fetchMovieDetails } from "@/lib/api";
+import { useEffect, useState } from "react";
 
 interface Props {
     movie: Movie;
@@ -21,26 +25,55 @@ export function MovieCard({ movie, rank, onSelect }: Props) {
     const genres = movie.genres?.split("|").slice(0, 2) ?? [];
     const gradient = CARD_GRADIENTS[movie.id % CARD_GRADIENTS.length];
 
+    const [posterUrl, setPosterUrl] = useState<string | null>(null);
+    const [imgError, setImgError] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchMovieDetails(movie.id).then((d) => {
+            if (!cancelled) setPosterUrl(d?.poster_url ?? null);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [movie.id]);
+
     return (
         <div
-            className="relative rounded overflow-hidden cursor-pointer group"
-            style={{ width: 220 }}
+            className="relative rounded-xl overflow-hidden cursor-pointer group transition-transform duration-200 hover:scale-[1.04] hover:z-10"
+            style={{
+                width: 180,
+                flexShrink: 0,
+                border: "1px solid rgba(255,255,255,0.10)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+                background: "var(--bg-card)",
+            }}
             onClick={() => onSelect?.(movie)}
             role={onSelect ? "button" : undefined}
         >
-            {/* Poster placeholder — 2:3 aspect ratio */}
+            {/* Poster — fixed 2:3 aspect ratio */}
             <div
-                className="w-full relative"
+                className="w-full relative overflow-hidden"
                 style={{
                     aspectRatio: "2/3",
                     background: `linear-gradient(${gradient})`,
                 }}
             >
+                {/* TMDB poster */}
+                {posterUrl && !imgError && (
+                    <img
+                        src={posterUrl}
+                        alt={movie.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => setImgError(true)}
+                    />
+                )}
+
                 {/* Rank badge */}
                 {rank != null && (
                     <span
-                        className="absolute top-2 left-2 text-xs font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: "rgba(0,0,0,0.7)", color: "#e5e5e5" }}
+                        className="absolute top-2 left-2 text-xs font-bold px-1.5 py-0.5 rounded-md z-10"
+                        style={{ background: "rgba(0,0,0,0.75)", color: "#e5e5e5" }}
                     >
                         #{rank}
                     </span>
@@ -49,8 +82,8 @@ export function MovieCard({ movie, rank, onSelect }: Props) {
                 {/* Rating badge */}
                 {movie.avg_rating != null && (
                     <span
-                        className="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: "rgba(0,0,0,0.7)", color: "#facc15" }}
+                        className="absolute top-2 right-2 text-xs font-bold px-1.5 py-0.5 rounded-md z-10"
+                        style={{ background: "rgba(0,0,0,0.75)", color: "#facc15" }}
                     >
                         ★ {movie.avg_rating.toFixed(1)}
                     </span>
@@ -58,8 +91,8 @@ export function MovieCard({ movie, rank, onSelect }: Props) {
 
                 {/* Hover overlay */}
                 <div
-                    className="absolute inset-0 flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)" }}
+                    className="absolute inset-0 flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)" }}
                 >
                     <div className="flex gap-1 mb-1 flex-wrap">
                         {genres.map((g) => (
@@ -78,8 +111,11 @@ export function MovieCard({ movie, rank, onSelect }: Props) {
 
             {/* Title bar */}
             <div
-                className="px-2 py-2"
-                style={{ background: "var(--bg-card)" }}
+                className="px-2.5 py-2.5"
+                style={{
+                    background: "#1f1f1f",
+                    borderTop: "1px solid rgba(255,255,255,0.06)",
+                }}
             >
                 <p className="text-sm font-semibold text-white line-clamp-1 leading-snug">{movie.title}</p>
                 {movie.year && (

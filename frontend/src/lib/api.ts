@@ -52,3 +52,15 @@ export async function fetchMovieDetails(movieId: number): Promise<MovieDetails |
     }
 }
 
+/** Fetch a single movie by id (genres, year, ratings etc.). Never throws. */
+export async function fetchMovie(movieId: number): Promise<Movie | null> {
+    try {
+        const res = await fetch(`${API_URL}/api/movies/${movieId}`, {
+            next: { revalidate: 86400 },
+        });
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}

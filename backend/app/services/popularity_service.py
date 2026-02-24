@@ -115,6 +115,26 @@ class PopularityService:
             return None
         return int(row.iloc[0]["tmdbId"])
 
+    def get_movie(self, movie_id: int) -> Optional[dict]:
+        """Return a single movie dict by MovieLens movie_id, or None."""
+        if self._movies is None:
+            self._movies = self._load()
+        rows = self._movies[self._movies["movieId"] == movie_id]
+        if rows.empty:
+            return None
+        row = rows.iloc[0]
+        return {
+            "id": int(row.movieId),
+            "title": row.title,
+            "genres": row.genres if row.genres != "(no genres listed)" else None,
+            "year": int(row.year) if pd.notna(row.year) else None,
+            "avg_rating": round(float(row.movie_avg_rating), 2) if pd.notna(row.movie_avg_rating) else None,
+            "num_ratings": int(row.movie_num_ratings) if pd.notna(row.movie_num_ratings) else None,
+            "popularity_score": round(float(row.movie_popularity), 4) if pd.notna(row.movie_popularity) else None,
+            "tmdb_id": int(row.tmdbId) if pd.notna(row.tmdbId) else None,
+            "imdb_id": str(row.imdbId) if pd.notna(row.imdbId) else None,
+        }
+
 
 # ── Module-level singleton ──────────────────────────────────────────────────
 @lru_cache(maxsize=1)

@@ -124,28 +124,31 @@ export function MovieDetailModal({ movie, onClose }: Props) {
                 </button>
 
                 <div className="flex flex-col md:flex-row">
-                    {/* Poster */}
-                    <div className="md:w-64 flex-shrink-0">
-                        {loading ? (
-                            <div
-                                className="w-full h-72 md:h-full md:min-h-[420px] md:rounded-l-xl animate-pulse"
-                                style={{ background: "rgba(255,255,255,0.05)" }}
-                            />
-                        ) : posterUrl ? (
-                            <img
-                                src={posterUrl}
-                                alt={movie.title}
-                                className="w-full h-72 md:h-full object-cover md:rounded-l-xl"
-                                style={{ minHeight: 320 }}
-                            />
-                        ) : (
-                            <div
-                                className="w-full h-72 md:h-full md:min-h-[420px] flex items-end pb-6 px-4 md:rounded-l-xl"
-                                style={{ background: gradient }}
-                            >
-                                <span className="text-white font-bold text-lg leading-snug drop-shadow-lg">{movie.title}</span>
-                            </div>
-                        )}
+                    {/* Poster — fixed 2:3 ratio column */}
+                    <div className="md:w-56 flex-shrink-0">
+                        <div
+                            className="relative overflow-hidden md:rounded-l-xl"
+                            style={{ aspectRatio: "2/3", background: gradient }}
+                        >
+                            {loading && (
+                                <div
+                                    className="absolute inset-0 animate-pulse"
+                                    style={{ background: "rgba(255,255,255,0.05)" }}
+                                />
+                            )}
+                            {posterUrl && (
+                                <img
+                                    src={posterUrl}
+                                    alt={movie.title}
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
+                            )}
+                            {!posterUrl && !loading && (
+                                <div className="absolute inset-0 flex items-end pb-6 px-4">
+                                    <span className="text-white font-bold text-base leading-snug drop-shadow-lg">{movie.title}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Content */}
@@ -245,8 +248,20 @@ export function MovieDetailModal({ movie, onClose }: Props) {
                             )}
                         </div>
 
-                        {/* External links */}
-                        <div className="flex gap-4 mt-auto pt-2">
+                        {/* External links + open full page */}
+                        <div className="flex flex-wrap items-center gap-3 mt-auto pt-2">
+                            <a
+                                href={`/movies/${movie.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold text-white transition-opacity hover:opacity-80"
+                                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Full page
+                            </a>
                             {movie.imdb_id && (
                                 <a
                                     href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, "0")}/`}

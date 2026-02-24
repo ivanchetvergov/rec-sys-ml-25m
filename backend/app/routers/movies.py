@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import MovieDetails, PopularMoviesResponse
+from app.schemas import Movie, MovieDetails, PopularMoviesResponse
 from app.services.popularity_service import PopularityService, get_popularity_service
 from app.services.tmdb_service import TMDBService, get_tmdb_service
 
@@ -24,6 +24,18 @@ def popular_movies(
         offset=offset,
         movies=movies,
     )
+
+
+@router.get("/{movie_id}", response_model=Movie)
+def get_movie(
+    movie_id: int,
+    service: PopularityService = Depends(get_popularity_service),
+):
+    """Return a single movie by its MovieLens movie_id."""
+    movie = service.get_movie(movie_id)
+    if movie is None:
+        raise HTTPException(status_code=404, detail=f"Movie {movie_id} not found")
+    return movie
 
 
 @router.get("/{movie_id}/details", response_model=MovieDetails)

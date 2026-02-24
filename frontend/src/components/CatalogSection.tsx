@@ -10,7 +10,7 @@ interface Props {
 
 export function CatalogSection({ movies, onSelect }: Props) {
     return (
-        <section id="catalog" className="px-12 pb-20">
+        <section id="catalog" className="pb-20">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
@@ -61,9 +61,9 @@ export function CatalogSection({ movies, onSelect }: Props) {
 
             {/* Grid */}
             <div
-                className="grid gap-3"
+                className="grid gap-4"
                 style={{
-                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
                 }}
             >
                 {movies.map((movie, i) => (
