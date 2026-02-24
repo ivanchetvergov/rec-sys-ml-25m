@@ -35,7 +35,6 @@ Example:
 import argparse
 import json
 import logging
-import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -348,6 +347,7 @@ def train_and_evaluate(
     mlflow_experiment: str = "two_stage_ranker",
     run_name: Optional[str] = None,
     seed: int = 42,
+    model_save_path: str = "data/models/two_stage_ranker",
 ) -> Dict[str, float]:
     np.random.seed(seed)
 
@@ -534,10 +534,13 @@ def train_and_evaluate(
 
         # ── save all artifacts ────────────────────────────────────────────
         logger.info("\nSaving model artifacts...")
-        artifact_dir = Path("two_stage_artifacts")
-        artifact_dir.mkdir(exist_ok=True)
-        two_stage.save(artifact_dir)
 
+        # Permanent on-disk location for the backend to load from
+        permanent_dir = Path(model_save_path)
+        permanent_dir.mkdir(parents=True, exist_ok=True)
+        two_stage.save(permanent_dir)
+
+        # Write training summary
         summary = {
             "model_type": "TwoStageRecommender",
             "dataset_tag": dataset_tag,
@@ -553,12 +556,12 @@ def train_and_evaluate(
             "val_metrics": {k: round(v, 6) for k, v in val_metrics.items()},
             "test_metrics": {k: round(v, 6) for k, v in test_metrics.items()},
         }
-        with open(artifact_dir / "training_summary.json", "w") as f:
+        with open(permanent_dir / "training_summary.json", "w") as f:
             json.dump(summary, f, indent=2)
 
-        mlflow.log_artifacts(str(artifact_dir))
-        shutil.rmtree(artifact_dir)
-        logger.info("Artifacts logged to MLflow.")
+        # Also log to MLflow
+        mlflow.log_artifacts(str(permanent_dir))
+        logger.info(f"Artifacts saved to '{permanent_dir}' and logged to MLflow.")
 
         logger.info("\n" + "=" * 80)
         logger.info("TRAINING SUMMARY")
@@ -617,6 +620,8 @@ def main() -> None:
     parser.add_argument("--experiment", type=str, default="two_stage_ranker")
     parser.add_argument("--run-name", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--model-save-path", type=str, default="data/models/two_stage_ranker",
+                        help="Directory to permanently save the trained model (backend loads from here)")
 
     args = parser.parse_args()
     train_and_evaluate(
@@ -639,6 +644,7 @@ def main() -> None:
         mlflow_experiment=args.experiment,
         run_name=args.run_name,
         seed=args.seed,
+        model_save_path=args.model_save_path,
     )
 
 

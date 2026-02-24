@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -32,3 +32,24 @@ class MovieDetails(BaseModel):
     tmdb_rating: Optional[float] = None
     tmdb_votes: Optional[int] = None
     release_date: Optional[str] = None
+
+
+class PersonalRec(BaseModel):
+    """A single personally recommended movie."""
+    id: int
+    score: float
+    title: Optional[str] = None
+    genres: Optional[str] = None
+    year: Optional[int] = None
+    avg_rating: Optional[float] = None
+    num_ratings: Optional[int] = None
+    popularity_score: Optional[float] = None
+    tmdb_id: Optional[int] = None
+
+
+class PersonalRecsResponse(BaseModel):
+    """Response for personal recommendation endpoint."""
+    user_id: int
+    model: str          # "two_stage" | "popularity_fallback"
+    total_returned: int
+    movies: List[PersonalRec]

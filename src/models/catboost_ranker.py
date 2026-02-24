@@ -244,9 +244,13 @@ class CatBoostRanker:
         return explanations
 
     def feature_importance(self) -> pd.DataFrame:
-        """Return feature importances sorted descending."""
+        """Return feature importances sorted descending.
+
+        Uses PredictionValuesChange which does not require the training
+        dataset to be passed (unlike LossFunctionChange).
+        """
         self._check_fitted()
-        importances = self._model.get_feature_importance()
+        importances = self._model.get_feature_importance(type="PredictionValuesChange")
         return (
             pd.DataFrame(
                 {"feature": self.feature_names_, "importance": importances}

@@ -65,3 +65,44 @@ export async function fetchMovie(movieId: number): Promise<Movie | null> {
         return null;
     }
 }
+
+/** A personally recommended movie with a relevance score. */
+export interface PersonalRec {
+    id: number;
+    score: number;
+    title: string | null;
+    genres: string | null;
+    year: number | null;
+    avg_rating: number | null;
+    num_ratings: number | null;
+    popularity_score: number | null;
+    tmdb_id: number | null;
+}
+
+export interface PersonalRecsResponse {
+    user_id: number;
+    /** "two_stage" when the ML model is used, "popularity_fallback" otherwise. */
+    model: string;
+    total_returned: number;
+    movies: PersonalRec[];
+}
+
+/**
+ * Fetch personal recommendations for a given user.
+ * Falls back gracefully — never throws.
+ */
+export async function fetchPersonalRecs(
+    userId: number,
+    limit = 20,
+): Promise<PersonalRecsResponse | null> {
+    try {
+        const res = await fetch(
+            `${API_URL}/api/movies/personal?user_id=${userId}&limit=${limit}`,
+            { cache: "no-store" }, // personalised — never cache
+        );
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}

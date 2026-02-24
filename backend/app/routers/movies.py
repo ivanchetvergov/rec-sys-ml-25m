@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import Movie, MovieDetails, PopularMoviesResponse
+from app.schemas import Movie, MovieDetails, PersonalRecsResponse, PopularMoviesResponse
 from app.services.popularity_service import PopularityService, get_popularity_service
+from app.services.recommender_service import RecommenderService, get_recommender_service
 from app.services.tmdb_service import TMDBService, get_tmdb_service
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -22,6 +23,32 @@ def popular_movies(
     return PopularMoviesResponse(
         total_returned=len(movies),
         offset=offset,
+        movies=movies,
+    )
+
+
+@router.get("/personal", response_model=PersonalRecsResponse)
+def personal_recommendations(
+    user_id: int = Query(..., description="MovieLens user id"),
+    limit: int = Query(20, ge=1, le=100, description="Number of recommendations"),
+    rec_service: RecommenderService = Depends(get_recommender_service),
+    pop_service: PopularityService = Depends(get_popularity_service),
+):
+    """
+    Returns personalised movie recommendations for the given user.
+
+    - If the user is in the training set, uses the two-stage iALS + CatBoost ranker.
+    - Cold-start (unknown user) or model not trained yet: falls back to popularity ranking.
+    """
+    movies, model_name = rec_service.get_personal_recs(
+        user_id=user_id,
+        n=limit,
+        pop_fallback=pop_service,
+    )
+    return PersonalRecsResponse(
+        user_id=user_id,
+        model=model_name,
+        total_returned=len(movies),
         movies=movies,
     )
 
