@@ -73,6 +73,11 @@ class PopularityService:
         logger.info(f"Loaded {len(movies):,} unique movies")
         return movies
 
+    def _ensure_movies_loaded(self) -> None:
+        """Public helper so other services can trigger loading without a full get_popular() call."""
+        if self._movies is None:
+            self._movies = self._load()
+
     def total_count(self) -> int:
         """Total number of movies in the feature store."""
         if self._movies is None:

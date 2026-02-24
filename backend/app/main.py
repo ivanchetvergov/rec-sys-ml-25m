@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.movies import router as movies_router
+from app.services.popularity_service import get_popularity_service
+from app.services.recommender_service import get_recommender_service
 
 load_dotenv()  # loads backend/.env if present
 
@@ -20,6 +22,22 @@ app.add_middleware(
 )
 
 app.include_router(movies_router, prefix="/api")
+
+
+@app.on_event("startup")
+async def _warm_up() -> None:
+    """Pre-load all heavy services so the first HTTP request is fast."""
+    logger = logging.getLogger("startup")
+    logger.info("Warming up PopularityService...")
+    pop = get_popularity_service()
+    pop._ensure_movies_loaded()
+    logger.info(f"PopularityService ready — {pop.total_count():,} movies")
+
+    logger.info("Warming up RecommenderService (ALS + CatBoost)...")
+    rec = get_recommender_service()
+    rec._ensure_loaded()
+    status = "two_stage ready" if rec.model_available else "model not found — popularity fallback"
+    logger.info(f"RecommenderService ready — {status}")
 
 
 @app.get("/api/health")

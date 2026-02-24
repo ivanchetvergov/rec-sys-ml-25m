@@ -73,29 +73,17 @@ class RecommenderService:
             logger.error("Failed to load TwoStageRecommender: %s", exc)
 
     def _load_movies(self) -> pd.DataFrame:
-        """Load feature-store metadata for id → movie info lookups."""
-        split_dir = _FEATURE_STORE / _DATASET_TAG
+        """Load movie metadata for id → display info lookups.
 
-        # Load one split — we only need the metadata columns
-        df = pd.read_parquet(split_dir / "train.parquet")
-        meta_cols = [
-            "movieId", "title", "genres", "year",
-            "movie_avg_rating", "movie_num_ratings", "movie_popularity",
-        ]
-        df = df[meta_cols].drop_duplicates("movieId").reset_index(drop=True)
-
-        # Merge TMDB/IMDB ids if the links file exists
-        links_path = _LINKS_CSV
-        if not links_path.exists():
-            # Try alternate location
-            links_path = _FEATURE_STORE / _DATASET_TAG / "links.csv"
-        if links_path.exists():
-            links = pd.read_csv(links_path)[["movieId", "tmdbId", "imdbId"]]
-            df = df.merge(links, on="movieId", how="left")
-        else:
-            df["tmdbId"] = None
-            df["imdbId"] = None
-
+        Reuses the PopularityService singleton (already loaded) to avoid
+        re-reading the 17.4M-row train.parquet a second time.
+        """
+        from app.services.popularity_service import get_popularity_service
+        pop = get_popularity_service()
+        # Trigger load if not yet done, then grab the internal DataFrame
+        pop._ensure_movies_loaded()
+        df = pop._movies.copy()  # already: movieId, title, genres, year, …, tmdbId, imdbId
+        df = df.rename(columns={"tmdbId": "tmdbId", "imdbId": "imdbId"})  # keep names as-is
         return df.set_index("movieId")
 
     def _ensure_loaded(self) -> None:
