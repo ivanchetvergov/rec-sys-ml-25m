@@ -169,7 +169,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 				{/* flex-row: poster stretches to content height automatically */}
 				<div className='flex flex-row'>
 					{/* Poster — full height (self-stretch via flex default align-items:stretch) */}
-					<div className='w-72 flex-shrink-0 hidden md:block'>
+					<div className='w-80 flex-shrink-0 hidden md:block'>
 						<div
 							className='relative h-full overflow-hidden rounded-l-xl'
 							style={{ background: gradient }}
@@ -358,55 +358,61 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 							/>
 						</div>
 
-						{/* Save + IMDB + TMDB + Full page — all on one row */}
-						<div className='flex flex-wrap items-center gap-2 mt-auto pt-1'>
-							<button
-								onClick={handleSave}
-								disabled={userRating === 0 && review.trim() === ''}
-								className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
-								style={{ background: 'var(--netflix-red)' }}
-							>
-								Save
-							</button>
-							{saved && (
-								<span className='text-sm text-green-400 animate-pulse'>
-									Saved!
-								</span>
-							)}
-							{movie.imdb_id && (
+						{/* Save left | IMDB + TMDB + Full page right */}
+						<div className='flex items-center justify-between gap-2 mt-auto pt-1'>
+							{/* Left: Save */}
+							<div className='flex items-center gap-2'>
+								<button
+									onClick={handleSave}
+									disabled={userRating === 0 && review.trim() === ''}
+									className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
+									style={{ background: 'var(--netflix-red)' }}
+								>
+									Save
+								</button>
+								{saved && (
+									<span className='text-sm text-green-400 animate-pulse'>
+										Saved!
+									</span>
+								)}
+							</div>
+							{/* Right: external links */}
+							<div className='flex items-center gap-2'>
+								{movie.imdb_id && (
+									<a
+										href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
+										target='_blank'
+										rel='noopener noreferrer'
+										className={pillClass}
+										style={pillBase}
+									>
+										<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+										IMDB
+									</a>
+								)}
+								{movie.tmdb_id && (
+									<a
+										href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+										target='_blank'
+										rel='noopener noreferrer'
+										className={pillClass}
+										style={pillBase}
+									>
+										<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+										TMDB
+									</a>
+								)}
 								<a
-									href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
+									href={`/movies/${movie.id}`}
 									target='_blank'
 									rel='noopener noreferrer'
 									className={pillClass}
 									style={pillBase}
 								>
 									<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
-									IMDB
+									Full page
 								</a>
-							)}
-							{movie.tmdb_id && (
-								<a
-									href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-									target='_blank'
-									rel='noopener noreferrer'
-									className={pillClass}
-									style={pillBase}
-								>
-									<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
-									TMDB
-								</a>
-							)}
-							<a
-								href={`/movies/${movie.id}`}
-								target='_blank'
-								rel='noopener noreferrer'
-								className={pillClass}
-								style={pillBase}
-							>
-								<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
-								Full page
-							</a>
+							</div>
 						</div>
 					</div>
 				</div>
