@@ -1,21 +1,46 @@
-import { MovieCard } from "@/components/MovieCard";
+import { CatalogSection } from "@/components/CatalogSection";
+import { HeroSection } from "@/components/HeroSection";
+import { MovieRow } from "@/components/MovieRow";
 import { fetchPopularMovies } from "@/lib/api";
 
 export default async function HomePage() {
-    const data = await fetchPopularMovies(40);
+    // Single fetch — sliced into sections client-side
+    const data = await fetchPopularMovies(80);
+    const movies = data.movies;
+
+    const hero = movies[0];
+    const trending = movies.slice(1, 21);
+    // Shuffle positions 20–59 to mimic "personalised" picks
+    const recommended = movies.slice(20, 50).sort((a, b) => a.id % 7 - b.id % 7);
+    const catalog = movies.slice(40, 80);
 
     return (
-        <div>
-            <h1 className="text-2xl font-bold mb-1">Most Popular</h1>
-            <p className="text-zinc-500 text-sm mb-6">
-                Ranked by popularity score: avg rating × log(1 + number of ratings)
-            </p>
+        <div style={{ background: "var(--bg-primary)" }}>
+            {/* ── Layer 1: Hero ─────────────────────────────────────────── */}
+            {hero && <HeroSection movie={hero} rank={1} />}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {data.movies.map((movie, i) => (
-                    <MovieCard key={movie.id} movie={movie} rank={i + 1} />
-                ))}
+            {/* ── Rows section ──────────────────────────────────────────── */}
+            <div className="mt-[-80px] relative z-10 pb-4">
+                <MovieRow
+                    title="Trending Now"
+                    badge="TOP 20"
+                    movies={trending}
+                    showRank
+                />
             </div>
+
+            {/* ── Layer 2: Personal Recommendations ─────────────────────── */}
+            <section id="popular" className="pb-4">
+                <MovieRow
+                    title="Recommended for You"
+                    badge="NEW"
+                    movies={recommended}
+                />
+            </section>
+
+            {/* ── Layer 3: Catalog ──────────────────────────────────────── */}
+            <CatalogSection movies={catalog} />
         </div>
     );
 }
+

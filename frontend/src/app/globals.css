@@ -2,7 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --netflix-red: #e50914;
+    --bg-primary: #141414;
+    --bg-card: #1a1a1a;
+    --bg-card-hover: #242424;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
 body {
-    background: #0f0f0f;
-    color: #f1f1f1;
+    background: var(--bg-primary);
+    color: #e5e5e5;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Hide scrollbar but keep scrolling */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Row scroll arrows */
+.row-scroll-btn {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 20, 0.7);
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.movie-row:hover .row-scroll-btn {
+    opacity: 1;
+}
+
+.row-scroll-btn:hover {
+    background: rgba(20, 20, 20, 0.95);
 }
