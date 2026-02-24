@@ -94,7 +94,7 @@ class PopularityService:
         if self._movies is None:
             self._movies = self._load()
 
-        limit = min(limit, 10_000)
+        limit = min(limit, 300) # NUMBER OF FILMS
         rows = self._movies.iloc[offset : offset + limit]
 
         return [
