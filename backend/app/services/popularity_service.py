@@ -26,9 +26,9 @@ _MOVIE_COLS = [
 ]
 
 # Relative path inside the container / local run
-_FEATURE_STORE = Path(__file__).parents[3] / "data" / "processed" / "feature_store"
+_FEATURE_STORE = Path(__file__).parents[2] / "data" / "processed" / "feature_store"
 _DATASET_TAG = "ml_v_20260215_184134"
-_LINKS_CSV = Path(__file__).parents[3] / "data" / "raw" / "ml-25m" / "links.csv"
+_LINKS_CSV = Path(__file__).parents[2] / "data" / "raw" / "ml-25m" / "links.csv"
 
 
 class PopularityService:

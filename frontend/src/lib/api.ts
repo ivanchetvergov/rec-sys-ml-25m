@@ -1,4 +1,16 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+/**
+ * SSR (Server Components / Route Handlers): use the internal Docker hostname
+ *   BACKEND_INTERNAL_URL=http://backend:8000
+ * Browser (Client Components): use the public origin served by nginx
+ *   NEXT_PUBLIC_API_URL=http://localhost  (or the real domain in prod)
+ *
+ * NEXT_PUBLIC_* vars are inlined at build time → available in the browser.
+ * Non-public vars (BACKEND_INTERNAL_URL) are only visible on the server.
+ */
+const API_URL =
+    typeof window === "undefined"
+        ? (process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000") // server-side
+        : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost");       // client-side
 
 export interface Movie {
     id: number;
