@@ -30,16 +30,19 @@ export default function RootLayout({
 						</span>
 						<nav className='hidden md:flex items-center gap-6 text-sm text-zinc-300'>
 							<a
-								href='#'
+								href='/'
 								className='hover:text-white transition-colors font-medium text-white'
 							>
 								Home
 							</a>
-							<a href='#popular' className='hover:text-white transition-colors'>
+							<a href='/#popular' className='hover:text-white transition-colors'>
 								Trending
 							</a>
-							<a href='#catalog' className='hover:text-white transition-colors'>
+							<a href='/#catalog' className='hover:text-white transition-colors'>
 								Catalog
+							</a>
+							<a href='/profile' className='hover:text-white transition-colors'>
+								My Profile
 							</a>
 						</nav>
 					</div>
