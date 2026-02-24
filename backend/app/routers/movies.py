@@ -54,18 +54,6 @@ def personal_recommendations(
     )
 
 
-@router.get("/{movie_id}", response_model=Movie)
-def get_movie(
-    movie_id: int,
-    service: PopularityService = Depends(get_popularity_service),
-):
-    """Return a single movie by its MovieLens movie_id."""
-    movie = service.get_movie(movie_id)
-    if movie is None:
-        raise HTTPException(status_code=404, detail=f"Movie {movie_id} not found")
-    return movie
-
-
 @router.get("/{movie_id}/details", response_model=MovieDetails)
 async def movie_details(
     movie_id: int,
@@ -97,3 +85,15 @@ async def movie_details(
         tmdb_votes=extra.get("tmdb_votes"),
         release_date=extra.get("release_date"),
     )
+
+
+@router.get("/{movie_id}", response_model=Movie)
+def get_movie(
+    movie_id: int,
+    service: PopularityService = Depends(get_popularity_service),
+):
+    """Return a single movie by its MovieLens movie_id."""
+    movie = service.get_movie(movie_id)
+    if movie is None:
+        raise HTTPException(status_code=404, detail=f"Movie {movie_id} not found")
+    return movie

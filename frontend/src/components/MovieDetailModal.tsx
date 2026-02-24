@@ -1,291 +1,423 @@
-"use client";
+'use client'
 
-import type { Movie, MovieDetails } from "@/lib/api";
-import { fetchMovieDetails } from "@/lib/api";
-import { useCallback, useEffect, useState } from "react";
+import type { Movie, MovieDetails } from '@/lib/api'
+import { fetchMovieDetails } from '@/lib/api'
+import {
+	addToWatchlist,
+	addWatched,
+	isInWatchlist,
+	isWatched,
+	removeFromWatchlist,
+	removeWatched,
+} from '@/lib/userStore'
+import { useCallback, useEffect, useState } from 'react'
 
 interface Props {
-    movie: Movie;
-    onClose: () => void;
+	movie: Movie
+	onClose: () => void
 }
 
-const STAR_COUNT = 5;
+const STAR_COUNT = 5
 
 function StarRating({
-    value,
-    onChange,
+	value,
+	onChange,
 }: {
-    value: number;
-    onChange: (v: number) => void;
+	value: number
+	onChange: (v: number) => void
 }) {
-    const [hovered, setHovered] = useState(0);
-    return (
-        <div className="flex gap-1">
-            {Array.from({ length: STAR_COUNT }, (_, i) => i + 1).map((star) => (
-                <button
-                    key={star}
-                    type="button"
-                    onMouseEnter={() => setHovered(star)}
-                    onMouseLeave={() => setHovered(0)}
-                    onClick={() => onChange(star)}
-                    aria-label={`Rate ${star} out of ${STAR_COUNT}`}
-                    className="text-2xl transition-transform hover:scale-110 focus:outline-none"
-                    style={{
-                        color: star <= (hovered || value) ? "#f59e0b" : "rgba(255,255,255,0.2)",
-                    }}
-                >
-                    ★
-                </button>
-            ))}
-        </div>
-    );
+	const [hovered, setHovered] = useState(0)
+	return (
+		<div className='flex gap-1'>
+			{Array.from({ length: STAR_COUNT }, (_, i) => i + 1).map(star => (
+				<button
+					key={star}
+					type='button'
+					onMouseEnter={() => setHovered(star)}
+					onMouseLeave={() => setHovered(0)}
+					onClick={() => onChange(star)}
+					aria-label={`Rate ${star} out of ${STAR_COUNT}`}
+					className='text-2xl transition-transform hover:scale-110 focus:outline-none'
+					style={{
+						color:
+							star <= (hovered || value) ? '#f59e0b' : 'rgba(255,255,255,0.2)',
+					}}
+				>
+					★
+				</button>
+			))}
+		</div>
+	)
 }
 
 export function MovieDetailModal({ movie, onClose }: Props) {
-    const [details, setDetails] = useState<MovieDetails | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [userRating, setUserRating] = useState(0);
-    const [review, setReview] = useState("");
-    const [saved, setSaved] = useState(false);
+	const [details, setDetails] = useState<MovieDetails | null>(null)
+	const [loading, setLoading] = useState(true)
+	const [userRating, setUserRating] = useState(0)
+	const [review, setReview] = useState('')
+	const [saved, setSaved] = useState(false)
+	const [watched, setWatched] = useState(false)
+	const [inWatchlist, setInWatchlist] = useState(false)
 
-    const storageKey = `movie_review_${movie.id}`;
+	const storageKey = `movie_review_${movie.id}`
 
-    // Load TMDB details
-    useEffect(() => {
-        setLoading(true);
-        fetchMovieDetails(movie.id)
-            .then(setDetails)
-            .finally(() => setLoading(false));
-    }, [movie.id]);
+	// Init watched / watchlist from localStorage
+	useEffect(() => {
+		setWatched(isWatched(movie.id))
+		setInWatchlist(isInWatchlist(movie.id))
+	}, [movie.id])
 
-    // Load saved review from localStorage
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem(storageKey);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                setUserRating(parsed.rating ?? 0);
-                setReview(parsed.review ?? "");
-            }
-        } catch {
-            // noop
-        }
-    }, [storageKey]);
+	// Load TMDB details
+	useEffect(() => {
+		setLoading(true)
+		fetchMovieDetails(movie.id)
+			.then(setDetails)
+			.finally(() => setLoading(false))
+	}, [movie.id])
 
-    // Close on Escape
-    const handleKeyDown = useCallback(
-        (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        },
-        [onClose]
-    );
-    useEffect(() => {
-        document.addEventListener("keydown", handleKeyDown);
-        return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [handleKeyDown]);
+	// Load saved review from localStorage
+	useEffect(() => {
+		try {
+			const stored = localStorage.getItem(storageKey)
+			if (stored) {
+				const parsed = JSON.parse(stored)
+				setUserRating(parsed.rating ?? 0)
+				setReview(parsed.review ?? '')
+			}
+		} catch {
+			// noop
+		}
+	}, [storageKey])
 
-    const handleSave = () => {
-        try {
-            localStorage.setItem(storageKey, JSON.stringify({ rating: userRating, review }));
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
-        } catch {
-            // noop
-        }
-    };
+	// Close on Escape
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent) => {
+			if (e.key === 'Escape') onClose()
+		},
+		[onClose],
+	)
+	useEffect(() => {
+		document.addEventListener('keydown', handleKeyDown)
+		return () => document.removeEventListener('keydown', handleKeyDown)
+	}, [handleKeyDown])
 
-    const genres = movie.genres?.split("|") ?? [];
-    const posterUrl = details?.poster_url;
-    const gradient = `linear-gradient(135deg, hsl(${(movie.id * 37) % 360},40%,25%), hsl(${(movie.id * 37 + 120) % 360},35%,15%))`;
+	const handleSave = () => {
+		try {
+			localStorage.setItem(
+				storageKey,
+				JSON.stringify({
+					rating: userRating,
+					review,
+					savedAt: new Date().toISOString(),
+				}),
+			)
+			setSaved(true)
+			setTimeout(() => setSaved(false), 2000)
+		} catch {
+			// noop
+		}
+	}
 
-    return (
-        /* Backdrop */
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}
-            onClick={onClose}
-        >
-            {/* Panel */}
-            <div
-                className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl"
-                style={{ background: "#181818" }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Close button */}
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full text-white"
-                    style={{ background: "rgba(0,0,0,0.6)" }}
-                    aria-label="Close"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+	const genres = movie.genres?.split('|') ?? []
+	const posterUrl = details?.poster_url
+	const gradient = `linear-gradient(135deg, hsl(${(movie.id * 37) % 360},40%,25%), hsl(${(movie.id * 37 + 120) % 360},35%,15%))`
 
-                <div className="flex flex-col md:flex-row">
-                    {/* Poster — fixed 2:3 ratio column */}
-                    <div className="md:w-56 flex-shrink-0">
-                        <div
-                            className="relative overflow-hidden md:rounded-l-xl"
-                            style={{ aspectRatio: "2/3", background: gradient }}
-                        >
-                            {loading && (
-                                <div
-                                    className="absolute inset-0 animate-pulse"
-                                    style={{ background: "rgba(255,255,255,0.05)" }}
-                                />
-                            )}
-                            {posterUrl && (
-                                <img
-                                    src={posterUrl}
-                                    alt={movie.title}
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-                            )}
-                            {!posterUrl && !loading && (
-                                <div className="absolute inset-0 flex items-end pb-6 px-4">
-                                    <span className="text-white font-bold text-base leading-snug drop-shadow-lg">{movie.title}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+	return (
+		/* Backdrop */
+		<div
+			className='fixed inset-0 z-50 flex items-center justify-center p-4'
+			style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
+			onClick={onClose}
+		>
+			{/* Panel */}
+			<div
+				className='relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl'
+				style={{ background: '#181818' }}
+				onClick={e => e.stopPropagation()}
+			>
+				{/* Close button */}
+				<button
+					onClick={onClose}
+					className='absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full text-white'
+					style={{ background: 'rgba(0,0,0,0.6)' }}
+					aria-label='Close'
+				>
+					<svg
+						xmlns='http://www.w3.org/2000/svg'
+						className='w-5 h-5'
+						fill='none'
+						viewBox='0 0 24 24'
+						stroke='currentColor'
+						strokeWidth={2.5}
+					>
+						<path
+							strokeLinecap='round'
+							strokeLinejoin='round'
+							d='M6 18L18 6M6 6l12 12'
+						/>
+					</svg>
+				</button>
 
-                    {/* Content */}
-                    <div className="flex-1 p-6 flex flex-col gap-4">
-                        {/* Title & meta */}
-                        <div>
-                            <h2 className="text-2xl font-bold text-white leading-tight">{movie.title}</h2>
-                            {details?.tagline && (
-                                <p className="text-sm italic mt-1" style={{ color: "var(--netflix-red)" }}>
-                                    "{details.tagline}"
-                                </p>
-                            )}
-                            <div className="flex flex-wrap gap-3 mt-2 text-sm text-zinc-400">
-                                {movie.year && <span>{movie.year}</span>}
-                                {details?.runtime && <span>{details.runtime} min</span>}
-                                {details?.release_date && <span>{details.release_date.slice(0, 4)}</span>}
-                            </div>
-                        </div>
+				<div className='flex flex-col md:flex-row'>
+					{/* Poster — fixed 2:3 ratio column */}
+					<div className='md:w-56 flex-shrink-0'>
+						<div
+							className='relative overflow-hidden md:rounded-l-xl'
+							style={{ aspectRatio: '2/3', background: gradient }}
+						>
+							{loading && (
+								<div
+									className='absolute inset-0 animate-pulse'
+									style={{ background: 'rgba(255,255,255,0.05)' }}
+								/>
+							)}
+							{posterUrl && (
+								<img
+									src={posterUrl}
+									alt={movie.title}
+									className='absolute inset-0 w-full h-full object-cover'
+								/>
+							)}
+							{!posterUrl && !loading && (
+								<div className='absolute inset-0 flex items-end pb-6 px-4'>
+									<span className='text-white font-bold text-base leading-snug drop-shadow-lg'>
+										{movie.title}
+									</span>
+								</div>
+							)}
+						</div>
+					</div>
 
-                        {/* Genres */}
-                        {genres.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {genres.map((g) => (
-                                    <span
-                                        key={g}
-                                        className="text-xs px-2.5 py-1 rounded-full font-medium"
-                                        style={{ background: "rgba(255,255,255,0.08)", color: "#d4d4d8" }}
-                                    >
-                                        {g}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+					{/* Content */}
+					<div className='flex-1 p-6 flex flex-col gap-4'>
+						{/* Title & meta */}
+						<div>
+							<h2 className='text-2xl font-bold text-white leading-tight'>
+								{movie.title}
+							</h2>
+							{details?.tagline && (
+								<p
+									className='text-sm italic mt-1'
+									style={{ color: 'var(--netflix-red)' }}
+								>
+									"{details.tagline}"
+								</p>
+							)}
+							<div className='flex flex-wrap gap-3 mt-2 text-sm text-zinc-400'>
+								{movie.year && <span>{movie.year}</span>}
+								{details?.runtime && <span>{details.runtime} min</span>}
+								{details?.release_date && (
+									<span>{details.release_date.slice(0, 4)}</span>
+								)}
+							</div>
+						</div>
 
-                        {/* Overview */}
-                        {details?.overview && (
-                            <p className="text-sm leading-relaxed text-zinc-300">{details.overview}</p>
-                        )}
+						{/* Genres */}
+						{genres.length > 0 && (
+							<div className='flex flex-wrap gap-2'>
+								{genres.map(g => (
+									<span
+										key={g}
+										className='text-xs px-2.5 py-1 rounded-full font-medium'
+										style={{
+											background: 'rgba(255,255,255,0.08)',
+											color: '#d4d4d8',
+										}}
+									>
+										{g}
+									</span>
+								))}
+							</div>
+						)}
 
-                        {/* Ratings row */}
-                        <div className="flex flex-wrap gap-5 text-sm">
-                            {movie.avg_rating != null && (
-                                <div className="flex flex-col">
-                                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Avg rating</span>
-                                    <span className="text-white font-bold text-lg">{movie.avg_rating.toFixed(1)}</span>
-                                    <span className="text-zinc-500 text-xs">{movie.num_ratings?.toLocaleString()} reviews</span>
-                                </div>
-                            )}
-                            {details?.tmdb_rating != null && (
-                                <div className="flex flex-col">
-                                    <span className="text-zinc-500 text-xs uppercase tracking-wide">TMDB</span>
-                                    <span className="text-white font-bold text-lg">{details.tmdb_rating.toFixed(1)}</span>
-                                    <span className="text-zinc-500 text-xs">{details.tmdb_votes?.toLocaleString()} votes</span>
-                                </div>
-                            )}
-                        </div>
+						{/* Overview */}
+						{details?.overview && (
+							<p className='text-sm leading-relaxed text-zinc-300'>
+								{details.overview}
+							</p>
+						)}
 
-                        {/* Divider */}
-                        <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+						{/* Ratings row */}
+						<div className='flex flex-wrap gap-5 text-sm'>
+							{movie.avg_rating != null && (
+								<div className='flex flex-col'>
+									<span className='text-zinc-500 text-xs uppercase tracking-wide'>
+										Avg rating
+									</span>
+									<span className='text-white font-bold text-lg'>
+										{movie.avg_rating.toFixed(1)}
+									</span>
+									<span className='text-zinc-500 text-xs'>
+										{movie.num_ratings?.toLocaleString()} reviews
+									</span>
+								</div>
+							)}
+							{details?.tmdb_rating != null && (
+								<div className='flex flex-col'>
+									<span className='text-zinc-500 text-xs uppercase tracking-wide'>
+										TMDB
+									</span>
+									<span className='text-white font-bold text-lg'>
+										{details.tmdb_rating.toFixed(1)}
+									</span>
+									<span className='text-zinc-500 text-xs'>
+										{details.tmdb_votes?.toLocaleString()} votes
+									</span>
+								</div>
+							)}
+						</div>
 
-                        {/* User rating */}
-                        <div>
-                            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Your rating</p>
-                            <StarRating value={userRating} onChange={setUserRating} />
-                        </div>
+						{/* Divider */}
+						<div style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
 
-                        {/* Review textarea */}
-                        <div>
-                            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Your review</p>
-                            <textarea
-                                value={review}
-                                onChange={(e) => setReview(e.target.value)}
-                                placeholder="Write a few words about the movie..."
-                                rows={3}
-                                className="w-full text-sm text-zinc-300 rounded-lg px-3 py-2.5 resize-none outline-none focus:ring-1 placeholder-zinc-600"
-                                style={{
-                                    background: "rgba(255,255,255,0.06)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                    // @ts-ignore
-                                    "--tw-ring-color": "var(--netflix-red)",
-                                }}
-                            />
-                        </div>
+						{/* User rating */}
+						<div>
+							<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
+								Your rating
+							</p>
+							<StarRating value={userRating} onChange={setUserRating} />
+						</div>
 
-                        {/* Save + Full page row */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleSave}
-                                disabled={userRating === 0 && review.trim() === ""}
-                                className="px-5 py-2 rounded font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{ background: "var(--netflix-red)" }}
-                            >
-                                Save
-                            </button>
-                            {saved && (
-                                <span className="text-sm text-green-400 animate-pulse">Saved!</span>
-                            )}
-                            <a
-                                href={`/movies/${movie.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded text-xs font-semibold text-white transition-opacity hover:opacity-80"
-                                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                                Full page
-                            </a>
-                        </div>
+						{/* Review textarea */}
+						<div>
+							<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
+								Your review
+							</p>
+							<textarea
+								value={review}
+								onChange={e => setReview(e.target.value)}
+								placeholder='Write a few words about the movie...'
+								rows={3}
+								className='w-full text-sm text-zinc-300 rounded-lg px-3 py-2.5 resize-none outline-none focus:ring-1 placeholder-zinc-600'
+								style={{
+									background: 'rgba(255,255,255,0.06)',
+									border: '1px solid rgba(255,255,255,0.1)',
+									// @ts-ignore
+									'--tw-ring-color': 'var(--netflix-red)',
+								}}
+							/>
+						</div>
 
-                        {/* External links */}
-                        <div className="flex flex-wrap items-center gap-3 mt-auto pt-2">
-                            {movie.imdb_id && (
-                                <a
-                                    href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, "0")}/`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-zinc-500 hover:text-yellow-400 transition-colors"
-                                >
-                                    IMDB ↗
-                                </a>
-                            )}
-                            {movie.tmdb_id && (
-                                <a
-                                    href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-zinc-500 hover:text-blue-400 transition-colors"
-                                >
-                                    TMDB ↗
-                                </a>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+						{/* Watched / Watchlist toggles */}
+						<div className='flex gap-2'>
+							<button
+								onClick={() => {
+									if (watched) {
+										removeWatched(movie.id)
+										setWatched(false)
+									} else {
+										addWatched(movie.id)
+										setWatched(true)
+									}
+								}}
+								className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+								style={{
+									background: watched
+										? 'rgba(46,160,67,0.2)'
+										: 'rgba(255,255,255,0.07)',
+									border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
+									color: watched ? '#4ade80' : '#a1a1aa',
+								}}
+							>
+								{watched ? (
+									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
+								) : (
+									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
+								)} Watched
+							</button>
+							<button
+								onClick={() => {
+									if (inWatchlist) {
+										removeFromWatchlist(movie.id)
+										setInWatchlist(false)
+									} else {
+										addToWatchlist(movie.id)
+										setInWatchlist(true)
+									}
+								}}
+								className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+								style={{
+									background: inWatchlist
+										? 'rgba(229,9,20,0.15)'
+										: 'rgba(255,255,255,0.07)',
+									border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
+									color: inWatchlist ? '#e50914' : '#a1a1aa',
+								}}
+							>
+								<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
+								{inWatchlist ? 'In Watchlist' : 'Watchlist'}
+							</button>
+						</div>
+
+						{/* Save + Full page row */}
+						<div className='flex items-center gap-3'>
+							<button
+								onClick={handleSave}
+								disabled={userRating === 0 && review.trim() === ''}
+								className='px-5 py-2 rounded font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
+								style={{ background: 'var(--netflix-red)' }}
+							>
+								Save
+							</button>
+							{saved && (
+								<span className='text-sm text-green-400 animate-pulse'>
+									Saved!
+								</span>
+							)}
+							<a
+								href={`/movies/${movie.id}`}
+								target='_blank'
+								rel='noopener noreferrer'
+								className='ml-auto flex items-center gap-1.5 px-3 py-2 rounded text-xs font-semibold text-white transition-opacity hover:opacity-80'
+								style={{
+									background: 'rgba(255,255,255,0.1)',
+									border: '1px solid rgba(255,255,255,0.15)',
+								}}
+							>
+								<svg
+									xmlns='http://www.w3.org/2000/svg'
+									className='w-3.5 h-3.5'
+									fill='none'
+									viewBox='0 0 24 24'
+									stroke='currentColor'
+									strokeWidth={2}
+								>
+									<path
+										strokeLinecap='round'
+										strokeLinejoin='round'
+										d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+									/>
+								</svg>
+								Full page
+							</a>
+						</div>
+
+						{/* External links */}
+						<div className='flex flex-wrap items-center gap-3 mt-auto pt-2'>
+							{movie.imdb_id && (
+								<a
+									href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='text-xs text-zinc-500 hover:text-yellow-400 transition-colors'
+								>
+									IMDB ↗
+								</a>
+							)}
+							{movie.tmdb_id && (
+								<a
+									href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='text-xs text-zinc-500 hover:text-blue-400 transition-colors'
+								>
+									TMDB ↗
+								</a>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	)
 }
