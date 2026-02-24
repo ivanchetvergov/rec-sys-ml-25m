@@ -50,6 +50,14 @@ function StarRating({
 	)
 }
 
+const pillBase: React.CSSProperties = {
+	background: 'rgba(255,255,255,0.08)',
+	border: '1px solid rgba(255,255,255,0.15)',
+	color: '#d4d4d8',
+}
+const pillClass =
+	'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-opacity hover:opacity-80'
+
 export function MovieDetailModal({ movie, onClose }: Props) {
 	const [details, setDetails] = useState<MovieDetails | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -129,9 +137,9 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 			style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
 			onClick={onClose}
 		>
-			{/* Panel */}
+			{/* Panel — overflow-hidden so poster fills height via flex stretch */}
 			<div
-				className='relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl'
+				className='relative w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden'
 				style={{ background: '#181818' }}
 				onClick={e => e.stopPropagation()}
 			>
@@ -158,12 +166,13 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 					</svg>
 				</button>
 
-				<div className='flex flex-col md:flex-row'>
-					{/* Poster — fixed 2:3 ratio column */}
-					<div className='md:w-56 flex-shrink-0'>
+				{/* flex-row: poster stretches to content height automatically */}
+				<div className='flex flex-row'>
+					{/* Poster — full height (self-stretch via flex default align-items:stretch) */}
+					<div className='w-72 flex-shrink-0 hidden md:block'>
 						<div
-							className='relative overflow-hidden md:rounded-l-xl'
-							style={{ aspectRatio: '2/3', background: gradient }}
+							className='relative h-full overflow-hidden rounded-l-xl'
+							style={{ background: gradient }}
 						>
 							{loading && (
 								<div
@@ -188,8 +197,8 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 						</div>
 					</div>
 
-					{/* Content */}
-					<div className='flex-1 p-6 flex flex-col gap-4'>
+					{/* Content — scrollable */}
+					<div className='flex-1 p-6 flex flex-col gap-4 overflow-y-auto max-h-[90vh]'>
 						{/* Title & meta */}
 						<div>
 							<h2 className='text-2xl font-bold text-white leading-tight'>
@@ -270,12 +279,63 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 						{/* Divider */}
 						<div style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
 
-						{/* User rating */}
+						{/* Your rating + Watched + Watchlist — all on one row */}
 						<div>
 							<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
 								Your rating
 							</p>
-							<StarRating value={userRating} onChange={setUserRating} />
+							<div className='flex items-center gap-3 flex-wrap'>
+								<StarRating value={userRating} onChange={setUserRating} />
+								{/* Watched */}
+								<button
+									onClick={() => {
+										if (watched) {
+											removeWatched(movie.id)
+											setWatched(false)
+										} else {
+											addWatched(movie.id)
+											setWatched(true)
+										}
+									}}
+									className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+									style={{
+										background: watched
+											? 'rgba(46,160,67,0.2)'
+											: 'rgba(255,255,255,0.07)',
+										border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
+										color: watched ? '#4ade80' : '#a1a1aa',
+									}}
+								>
+									{watched ? (
+										<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
+									) : (
+										<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
+									)} Watched
+								</button>
+								{/* Watchlist */}
+								<button
+									onClick={() => {
+										if (inWatchlist) {
+											removeFromWatchlist(movie.id)
+											setInWatchlist(false)
+										} else {
+											addToWatchlist(movie.id)
+											setInWatchlist(true)
+										}
+									}}
+									className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+									style={{
+										background: inWatchlist
+											? 'rgba(229,9,20,0.15)'
+											: 'rgba(255,255,255,0.07)',
+										border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
+										color: inWatchlist ? '#e50914' : '#a1a1aa',
+									}}
+								>
+									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
+									{inWatchlist ? 'In Watchlist' : 'Watchlist'}
+								</button>
+							</div>
 						</div>
 
 						{/* Review textarea */}
@@ -298,63 +358,12 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 							/>
 						</div>
 
-						{/* Watched / Watchlist toggles */}
-						<div className='flex gap-2'>
-							<button
-								onClick={() => {
-									if (watched) {
-										removeWatched(movie.id)
-										setWatched(false)
-									} else {
-										addWatched(movie.id)
-										setWatched(true)
-									}
-								}}
-								className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
-								style={{
-									background: watched
-										? 'rgba(46,160,67,0.2)'
-										: 'rgba(255,255,255,0.07)',
-									border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
-									color: watched ? '#4ade80' : '#a1a1aa',
-								}}
-							>
-								{watched ? (
-									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
-								) : (
-									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
-								)} Watched
-							</button>
-							<button
-								onClick={() => {
-									if (inWatchlist) {
-										removeFromWatchlist(movie.id)
-										setInWatchlist(false)
-									} else {
-										addToWatchlist(movie.id)
-										setInWatchlist(true)
-									}
-								}}
-								className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
-								style={{
-									background: inWatchlist
-										? 'rgba(229,9,20,0.15)'
-										: 'rgba(255,255,255,0.07)',
-									border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
-									color: inWatchlist ? '#e50914' : '#a1a1aa',
-								}}
-							>
-								<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
-								{inWatchlist ? 'In Watchlist' : 'Watchlist'}
-							</button>
-						</div>
-
-						{/* Save + Full page row */}
-						<div className='flex items-center gap-3'>
+						{/* Save + IMDB + TMDB + Full page — all on one row */}
+						<div className='flex flex-wrap items-center gap-2 mt-auto pt-1'>
 							<button
 								onClick={handleSave}
 								disabled={userRating === 0 && review.trim() === ''}
-								className='px-5 py-2 rounded font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
+								className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
 								style={{ background: 'var(--netflix-red)' }}
 							>
 								Save
@@ -364,44 +373,16 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 									Saved!
 								</span>
 							)}
-							<a
-								href={`/movies/${movie.id}`}
-								target='_blank'
-								rel='noopener noreferrer'
-								className='ml-auto flex items-center gap-1.5 px-3 py-2 rounded text-xs font-semibold text-white transition-opacity hover:opacity-80'
-								style={{
-									background: 'rgba(255,255,255,0.1)',
-									border: '1px solid rgba(255,255,255,0.15)',
-								}}
-							>
-								<svg
-									xmlns='http://www.w3.org/2000/svg'
-									className='w-3.5 h-3.5'
-									fill='none'
-									viewBox='0 0 24 24'
-									stroke='currentColor'
-									strokeWidth={2}
-								>
-									<path
-										strokeLinecap='round'
-										strokeLinejoin='round'
-										d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-									/>
-								</svg>
-								Full page
-							</a>
-						</div>
-
-						{/* External links */}
-						<div className='flex flex-wrap items-center gap-3 mt-auto pt-2'>
 							{movie.imdb_id && (
 								<a
 									href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
 									target='_blank'
 									rel='noopener noreferrer'
-									className='text-xs text-zinc-500 hover:text-yellow-400 transition-colors'
+									className={pillClass}
+									style={pillBase}
 								>
-									IMDB ↗
+									<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+									IMDB
 								</a>
 							)}
 							{movie.tmdb_id && (
@@ -409,11 +390,23 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 									href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
 									target='_blank'
 									rel='noopener noreferrer'
-									className='text-xs text-zinc-500 hover:text-blue-400 transition-colors'
+									className={pillClass}
+									style={pillBase}
 								>
-									TMDB ↗
+									<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+									TMDB
 								</a>
 							)}
+							<a
+								href={`/movies/${movie.id}`}
+								target='_blank'
+								rel='noopener noreferrer'
+								className={pillClass}
+								style={pillBase}
+							>
+								<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+								Full page
+							</a>
 						</div>
 					</div>
 				</div>
