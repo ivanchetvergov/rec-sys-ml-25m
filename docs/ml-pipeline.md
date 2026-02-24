@@ -11,8 +11,14 @@ make preprocess
 # Обучить PopularityRecommender на 10% данных (для быстрой проверки)
 make train-popularity-sample
 
-# Обучить на полных данных
+# Обучить PopularityRecommender на полных данных
 make train-popularity
+
+# Обучить SVD Collaborative Filtering на 10% данных
+make train-cf-sample
+
+# Обучить SVD Collaborative Filtering на полных данных
+make train-cf
 
 # Посмотреть эксперименты в MLflow UI
 make mlflow-ui        # http://localhost:5000
@@ -25,20 +31,22 @@ make mlflow-ui-alt    # http://localhost:5001 (если 5000 занят AirPlay)
 
 ```
 src/
-├── config.py                    ← константы и пути
-├── data_loader.py               ← загрузка CSV в DataFrame
-├── preprocessor.py              ← фильтрация, очистка, merge
-├── feature_engineer.py          ← создание 56 признаков
-├── data_splitter.py             ← temporal split 70/15/15
-├── feature_store.py             ← сохранение parquet + metadata.json
+├── config.py                        ← константы и пути
+├── data_loader.py                   ← загрузка CSV в DataFrame
+├── preprocessor.py                  ← фильтрация, очистка, merge
+├── feature_engineer.py              ← создание 56 признаков
+├── data_splitter.py                 ← temporal split 70/15/15
+├── feature_store.py                 ← сохранение parquet + metadata.json
 ├── pipeline/
-│   └── preprocess_pipeline.py  ← оркестратор (5 шагов)
+│   └── preprocess_pipeline.py      ← оркестратор (5 шагов)
 ├── models/
-│   └── popularity_based.py     ← PopularityRecommender
+│   ├── popularity_based.py         ← PopularityRecommender
+│   └── collaborative_filtering.py  ← SVDRecommender
 ├── training/
-│   └── train_popularity.py     ← запуск с MLflow логированием
+│   ├── train_popularity.py         ← baseline, MLflow experiment: popularity_baseline
+│   └── train_collaborative.py      ← SVD CF, MLflow experiment: collaborative_filtering
 └── evaluation/
-    └── metrics.py              ← Precision@K, Recall@K, nDCG@K, MAP@K
+    └── metrics.py                  ← Precision@K, Recall@K, nDCG@K, MAP@K
 ```
 
 ---
@@ -198,6 +206,95 @@ make train-popularity-sample
 | Coverage@10 | 0.09% | — |
 
 Низкое покрытие (0.09%) ожидаемо — непersonalized модель всегда рекомендует одни и те же топ-фильмы.
+
+---
+
+## Модель — SVDRecommender (`models/collaborative_filtering.py`)
+
+Персонализированная модель матричной факторизации через **Truncated SVD**.
+
+### Как работает
+
+Построим центрированную матрицу $R_{centered}$ (рейтинги минус среднее пользователя), затем разложим:
+
+$$R_{centered} \approx U \Sigma V^T$$
+
+Score для неизвестной пары $(u, i)$:
+
+$$\hat{r}_{ui} = \mu_u + (U_u \cdot \Sigma) \cdot V_i$$
+
+где $\mu_u$ — средний рейтинг пользователя (bias).
+
+**Используемые библиотеки:** `scipy.sparse.linalg.svds` — входит в `scipy`, новых зависимостей не требуется.
+
+### Параметры
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `--factors` | `100` | Число латентных факторов $k$ |
+| `--sample-frac` | `None` | Доля train-данных (None = полный датасет) |
+| `--relevance-threshold` | `4.0` | Минимальный рейтинг для положительного примера |
+| `--max-eval-users` | `1000` | Число пользователей для оценки на val/test |
+| `--seed` | `42` | Фиксация случайности |
+
+### Методы
+
+| Метод | Описание |
+|-------|----------|
+| `fit(train_df)` | Построить sparse-матрицу, запустить svds, сохранить факторы |
+| `recommend(user_id, n, exclude_items)` | Top-N через dot product + argsort |
+| `recommend_batch(user_ids, seen_items, n)` | Батч-рекомендации |
+| `score(user_id, item_id)` | Предсказанный рейтинг с восстановленным bias |
+| `save(path)` | `user_factors.npy`, `item_factors.npy`, `id_maps.pkl`, `model_config.json` |
+| `load(path)` | Загрузить сохранённую модель |
+
+**Cold-start:** пользователь не встречался в train → возвращается `[]`; рекомендуется фолбэк на `PopularityRecommender`.
+
+### Обучение с MLflow
+
+```bash
+# Быстрый прогон — 10% данных, 50 факторов (~2-5 мин)
+make train-cf-sample
+
+# Полный прогон — весь датасет, 100 факторов (~20-40 мин)
+make train-cf
+
+# Или напрямую с кастомными параметрами
+python -m src.training.train_collaborative \
+    --dataset-tag ml_v_20260215_184134 \
+    --factors 150 \
+    --sample-frac 0.2 \
+    --max-eval-users 2000 \
+    --run-name svd_k150_exp1
+```
+
+Логирует в MLflow (эксперимент `collaborative_filtering`):
+
+- **params:** `model_type`, `dataset_tag`, `factors`, `sample_frac`, `seed`, `relevance_threshold`
+- **metrics:** `val_precision_at_5/10/20`, `val_recall_at_5/10/20`, `val_ndcg_at_5/10/20`, `val_map_at_5/10/20`, `val_coverage_at_5/10/20`, и аналогичные `test_*`
+- **artifacts:** `user_factors.npy`, `item_factors.npy`, `id_maps.pkl`, `model_config.json`, `training_summary.json`
+
+### Загрузка сохранённой модели
+
+```python
+from src.models.collaborative_filtering import SVDRecommender
+
+model = SVDRecommender.load("path/to/artifacts")
+
+# Рекомендации для одного пользователя
+recs = model.recommend(user_id=123, n=10, exclude_items={100, 200})
+
+# Батч для нескольких пользователей
+seen = {123: {100, 200}, 456: {300}}
+recs_batch = model.recommend_batch([123, 456], n=10, exclude_items_per_user=seen)
+```
+
+### Сравнение моделей
+
+| Модель | Тип | Coverage | Скорость обучения | Холодный старт |
+|--------|-----|----------|-------------------|---------------|
+| `PopularityRecommender` | Non-personalized | ~0.1% | < 1 сек | ✅ Все пользователи |
+| `SVDRecommender` | Matrix Factorization | > 5% | 2–40 мин | ❌ Только in-matrix |
 
 ---
 

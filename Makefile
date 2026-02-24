@@ -14,7 +14,7 @@ NPM ?= $(shell command -v npm 2>/dev/null \
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess train-popularity train-popularity-sample mlflow-ui mlflow-ui-alt mlflow-stop clean \
+.PHONY: help install preprocess train-popularity train-popularity-sample train-cf train-cf-sample mlflow-ui mlflow-ui-alt mlflow-stop clean \
         backend frontend web web-down
 
 help:
@@ -33,8 +33,10 @@ help:
 	@echo "  make web-down               - Stop Docker Compose"
 	@echo ""
 	@echo "Model training:"
-	@echo "  make train-popularity       - Train popularity baseline (full data)"
+	@echo "  make train-popularity        - Train popularity baseline (full data)"
 	@echo "  make train-popularity-sample - Train popularity baseline (10% sample for testing)"
+	@echo "  make train-cf                - Train SVD collaborative filtering (full data)"
+	@echo "  make train-cf-sample         - Train SVD collaborative filtering (10% sample)"
 	@echo ""
 	@echo "Monitoring:"
 	@echo "  make mlflow-ui              - Start MLflow UI on http://localhost:5000"
@@ -66,6 +68,21 @@ train-popularity-sample:
 		--min-ratings 10 \
 		--rating-weight 1.0 \
 		--count-weight 1.0 \
+		--relevance-threshold 4.0 \
+		--k-values 5 10 20
+
+train-cf:
+	$(PYTHON) -m src.training.train_collaborative \
+		--dataset-tag $(DATASET_TAG) \
+		--factors 100 \
+		--relevance-threshold 4.0 \
+		--k-values 5 10 20
+
+train-cf-sample:
+	$(PYTHON) -m src.training.train_collaborative \
+		--dataset-tag $(DATASET_TAG) \
+		--sample-frac 0.1 \
+		--factors 50 \
 		--relevance-threshold 4.0 \
 		--k-values 5 10 20
 
