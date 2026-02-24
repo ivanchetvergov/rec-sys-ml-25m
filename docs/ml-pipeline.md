@@ -8,17 +8,17 @@
 # Полный пайплайн (препроцессинг + feature store)
 make preprocess
 
-# Обучить PopularityRecommender на 10% данных (для быстрой проверки)
-make train-popularity-sample
+# Popularity baseline
+make train-popularity-sample   # 10% данных, быстро
+make train-popularity          # полный датасет
 
-# Обучить PopularityRecommender на полных данных
-make train-popularity
+# iALS candidate generator (Stage 1)
+make train-als-sample          # 10% данных
+make train-als                 # полный датасет
 
-# Обучить SVD Collaborative Filtering на 10% данных
-make train-cf-sample
-
-# Обучить SVD Collaborative Filtering на полных данных
-make train-cf
+# Two-stage: iALS + CatBoost Ranker  ← рекомендуется
+make train-ranker-sample       # 10% данных (~5-10 мин)
+make train-ranker              # полный датасет (~30-60 мин)
 
 # Посмотреть эксперименты в MLflow UI
 make mlflow-ui        # http://localhost:5000
@@ -40,11 +40,16 @@ src/
 ├── pipeline/
 │   └── preprocess_pipeline.py      ← оркестратор (5 шагов)
 ├── models/
-│   ├── popularity_based.py         ← PopularityRecommender
-│   └── collaborative_filtering.py  ← SVDRecommender
+│   ├── popularity_based.py         ← PopularityRecommender  (baseline)
+│   ├── collaborative_filtering.py  ← SVDRecommender         (reference)
+│   ├── als_recommender.py          ← ALSRecommender (iALS)  ← Stage 1
+│   ├── catboost_ranker.py          ← CatBoostRanker          ← Stage 2
+│   └── two_stage_recommender.py    ← TwoStageRecommender    ← production
 ├── training/
-│   ├── train_popularity.py         ← baseline, MLflow experiment: popularity_baseline
-│   └── train_collaborative.py      ← SVD CF, MLflow experiment: collaborative_filtering
+│   ├── train_popularity.py         ← MLflow: popularity_baseline
+│   ├── train_collaborative.py      ← MLflow: collaborative_filtering
+│   ├── train_als.py                ← MLflow: als_candidate_generator
+│   └── train_ranker.py             ← MLflow: two_stage_ranker
 └── evaluation/
     └── metrics.py                  ← Precision@K, Recall@K, nDCG@K, MAP@K
 ```
@@ -291,10 +296,134 @@ recs_batch = model.recommend_batch([123, 456], n=10, exclude_items_per_user=seen
 
 ### Сравнение моделей
 
-| Модель | Тип | Coverage | Скорость обучения | Холодный старт |
-|--------|-----|----------|-------------------|---------------|
-| `PopularityRecommender` | Non-personalized | ~0.1% | < 1 сек | ✅ Все пользователи |
-| `SVDRecommender` | Matrix Factorization | > 5% | 2–40 мин | ❌ Только in-matrix |
+| Модель | Тип | NDCG@10 | Coverage | Время обучения | Cold-start |
+|--------|-----|---------|----------|----------------|------------|
+| `PopularityRecommender` | Non-personalized | 0.05 | ~0.1% | <1 сек | ✅ всегда |
+| `SVDRecommender` | Truncated SVD | 0.13 | ~4% | 10–40 мин | ❌ in-matrix |
+| `ALSRecommender` | iALS (implicit) | ~0.16 | ~6% | 5–20 мин | ❌ in-matrix |
+| `TwoStageRecommender` | iALS + CatBoost | **~0.30+** | ~10% | 30–60 мин | fallback |
+
+---
+
+## Модель — ALSRecommender (`models/als_recommender.py`)
+
+**Implicit ALS (iALS)** — Stage 1 пайплайна. Реализует алгоритм Hu, Koren & Volinsky (2008) через библиотеку `implicit`.
+
+### Как работает
+
+Каждый рейтинг преобразуется в **confidence** (уверенность в предпочтении):
+
+| `confidence_mode` | Формула | Когда использовать |
+|-------------------|---------|---------|
+| `linear` | $c_{ui} = 1 + \alpha \cdot r_{ui}$ | стандарт, хорошо работает |
+| `log` | $c_{ui} = 1 + \alpha \cdot \log(1 + r_{ui})$ | сглаживает эффект высоких рейтингов |
+| `binary` | $c_{ui} = \alpha$ | игнорирует шкалу оценок |
+
+Модель оптимизирует weighted matrix factorization: $\min_{U,V} \sum_{u,i} c_{ui}(p_{ui} - U_u V_i^T)^2 + \lambda(\|U\|^2 + \|V\|^2)$
+
+### Параметры
+
+| Параметр | По умолчанию | Описание |
+|----------|-------------|----------|
+| `--als-factors` | `128` | Число латентных факторов |
+| `--als-iterations` | `20` | Число итераций ALS |
+| `--als-regularization` | `0.01` | L2 регуляризация |
+| `--als-alpha` | `15.0` | Масштаб confidence |
+| `--als-confidence-mode` | `linear` | Функция confidence |
+
+### Команды
+
+```bash
+# Dev run (10% данных, ~1-3 мин)
+make train-als-sample
+
+# Production run
+make train-als
+
+# Кастомный запуск (log-confidence вариант)
+python -m src.training.train_als \
+    --dataset-tag ml_v_20260215_184134 \
+    --factors 128 --iterations 20 \
+    --confidence-mode log --alpha 10.0 \
+    --run-name ials_log_a10
+```
+
+MLflow эксперимент: `als_candidate_generator`
+
+---
+
+## Модель — TwoStageRecommender (`models/two_stage_recommender.py`)
+
+Профессиональный production-пайплайн из двух стадий.
+
+```
+Request(user_id)
+      ↓
+[Stage 1] ALSRecommender          ~1-2ms
+  → топ-300 кандидатов
+      ↓
+[Stage 2] CatBoostRanker          ~5-10ms
+  → переранжирование 300 → 10
+  → каждый результат + SHAP explanation
+      ↓
+[Fallback] PopularityRecommender  cold-start
+```
+
+### Признаки для ранкера (38 итого)
+
+**User features (7):** `user_avg_rating`, `user_rating_std`, `user_num_ratings`, `user_min_rating`, `user_max_rating`, `user_activity_days`, `user_rating_velocity`
+
+**Item features (30):** `movie_avg_rating`, `movie_rating_std`, `movie_num_ratings`, `movie_popularity`, `year`, `movie_age`, `decade`, + 20 жанровых дummies + ...
+
+**Retrieval feature (1):** `als_score` — score из Stage 1 (ключевой признак)
+
+### Как строится обучающий датасет для ранкера
+
+Для каждого пользователя (выборка из train):
+
+- **positives** = фильмы с rating ≥ 4.0
+- **hard negatives** = ALS top-300 (кандидаты, которые модель "почти" выбрала)
+- **label** = 1 для positives, 0 для остальных
+- **group** = userId (требование YetiRank)
+
+### Команды
+
+```bash
+# Dev run (10% данных, ~5-10 мин)
+make train-ranker-sample
+
+# Production run (~30-60 мин)
+make train-ranker
+
+# Кастомный запуск
+python -m src.training.train_ranker \
+    --dataset-tag ml_v_20260215_184134 \
+    --als-factors 128 --als-confidence-mode log \
+    --ranker-iterations 600 --ranker-loss YetiRank \
+    --n-candidates 300 --max-ranker-users 10000
+```
+
+MLflow эксперимент: `two_stage_ranker`
+
+- **params:** все ALS + Ranker params
+- **metrics:** `val/test_precision/recall/ndcg/map/coverage` @5/10/20
+- **artifacts:** `als/`, `ranker/`, `user_features.parquet`, `item_features.parquet`, `feature_importances.csv`
+
+### Инференс из Python
+
+```python
+from src.models.two_stage_recommender import TwoStageRecommender
+
+pipeline = TwoStageRecommender.load("path/to/two_stage_artifacts")
+
+# Топ-10 с объяснениями
+results = pipeline.recommend(user_id=123, n=10, explain=True)
+# [{'item_id': 42, 'score': 0.83,
+#   'explanation': {'als_score': 0.41, 'movie_popularity': 0.28, ...}}, ...]
+
+# Батч без объяснений
+batch = pipeline.recommend_batch([123, 456, 789], n=10)
+```
 
 ---
 

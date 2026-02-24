@@ -14,7 +14,12 @@ NPM ?= $(shell command -v npm 2>/dev/null \
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess train-popularity train-popularity-sample train-cf train-cf-sample mlflow-ui mlflow-ui-alt mlflow-stop clean \
+.PHONY: help install preprocess \
+        train-popularity train-popularity-sample \
+        train-cf train-cf-sample \
+        train-als train-als-sample \
+        train-ranker train-ranker-sample \
+        mlflow-ui mlflow-ui-alt mlflow-stop clean \
         backend frontend web web-down
 
 help:
@@ -37,6 +42,10 @@ help:
 	@echo "  make train-popularity-sample - Train popularity baseline (10% sample for testing)"
 	@echo "  make train-cf                - Train SVD collaborative filtering (full data)"
 	@echo "  make train-cf-sample         - Train SVD collaborative filtering (10% sample)"
+	@echo "  make train-als               - Train iALS candidate generator (full data)"
+	@echo "  make train-als-sample        - Train iALS candidate generator (10% sample)"
+	@echo "  make train-ranker            - Train two-stage iALS+CatBoost pipeline (full data)"
+	@echo "  make train-ranker-sample     - Train two-stage iALS+CatBoost pipeline (10% sample)"
 	@echo ""
 	@echo "Monitoring:"
 	@echo "  make mlflow-ui              - Start MLflow UI on http://localhost:5000"
@@ -84,6 +93,50 @@ train-cf-sample:
 		--sample-frac 0.1 \
 		--factors 50 \
 		--relevance-threshold 4.0 \
+		--k-values 5 10 20
+
+train-als:
+	$(PYTHON) -m src.training.train_als \
+		--dataset-tag $(DATASET_TAG) \
+		--factors 128 \
+		--iterations 20 \
+		--alpha 15.0 \
+		--confidence-mode linear \
+		--relevance-threshold 4.0 \
+		--k-values 5 10 20
+
+train-als-sample:
+	$(PYTHON) -m src.training.train_als \
+		--dataset-tag $(DATASET_TAG) \
+		--sample-frac 0.1 \
+		--factors 64 \
+		--iterations 15 \
+		--alpha 15.0 \
+		--confidence-mode linear \
+		--k-values 5 10 20
+
+train-ranker:
+	$(PYTHON) -m src.training.train_ranker \
+		--dataset-tag $(DATASET_TAG) \
+		--als-factors 128 \
+		--als-iterations 20 \
+		--als-confidence-mode linear \
+		--ranker-iterations 600 \
+		--ranker-depth 6 \
+		--ranker-loss YetiRank \
+		--n-candidates 300 \
+		--max-ranker-users 10000 \
+		--k-values 5 10 20
+
+train-ranker-sample:
+	$(PYTHON) -m src.training.train_ranker \
+		--dataset-tag $(DATASET_TAG) \
+		--sample-frac 0.1 \
+		--als-factors 64 \
+		--als-iterations 15 \
+		--ranker-iterations 300 \
+		--n-candidates 200 \
+		--max-ranker-users 3000 \
 		--k-values 5 10 20
 
 mlflow-ui:
