@@ -27,6 +27,7 @@ class MovieDetails(BaseModel):
     overview: Optional[str] = None
     tagline: Optional[str] = None
     poster_url: Optional[str] = None
+    backdrop_url: Optional[str] = None
     runtime: Optional[int] = None
     tmdb_rating: Optional[float] = None
     tmdb_votes: Optional[int] = None

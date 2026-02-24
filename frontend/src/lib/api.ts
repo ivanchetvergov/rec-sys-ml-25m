@@ -24,6 +24,7 @@ export interface MovieDetails {
     title: string;
     overview: string | null;
     poster_url: string | null;
+    backdrop_url: string | null;
     tagline: string | null;
     runtime: number | null;
     tmdb_rating: number | null;

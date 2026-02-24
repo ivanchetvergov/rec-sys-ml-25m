@@ -62,6 +62,7 @@ async def movie_details(
         title="",  # caller already knows the title from the movie list
         overview=extra.get("overview"),
         poster_url=extra.get("poster_url"),
+        backdrop_url=extra.get("backdrop_url"),
         tagline=extra.get("tagline"),
         runtime=extra.get("runtime"),
         tmdb_rating=extra.get("tmdb_rating"),

@@ -16,8 +16,8 @@ export function MoviePageClient({ movies }: Props) {
 
     const hero = movies[0];
     const trending = movies.slice(1, 21);
-    const recommended = movies.slice(20, 50).sort((a, b) => (a.id % 7) - (b.id % 7));
-    const catalog = movies.slice(40, 80);
+    const recommended = movies.slice(21, 50).sort((a, b) => (a.id % 7) - (b.id % 7));
+    const catalog = movies.slice(50);
 
     return (
         <div style={{ background: "var(--bg-primary)" }}>

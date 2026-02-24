@@ -1,4 +1,8 @@
+"use client";
+
 import type { Movie } from "@/lib/api";
+import { fetchMovieDetails } from "@/lib/api";
+import { useEffect, useState } from "react";
 
 interface Props {
     movie: Movie;
@@ -15,73 +19,94 @@ const HERO_GRADIENTS = [
     "135deg, #2d1b69, #11998e, #38ef7d",
 ];
 
-function getGradient(id: number): string {
-    return HERO_GRADIENTS[id % HERO_GRADIENTS.length];
-}
-
 export function HeroSection({ movie, rank = 1, onSelect }: Props) {
     const genres = movie.genres?.split("|") ?? [];
-    const gradient = getGradient(movie.id);
+    const gradient = HERO_GRADIENTS[movie.id % HERO_GRADIENTS.length];
+
+    const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
+    const [backdropLoaded, setBackdropLoaded] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        setBackdropLoaded(false);
+        fetchMovieDetails(movie.id).then((d) => {
+            if (!cancelled && d?.backdrop_url) setBackdropUrl(d.backdrop_url);
+        });
+        return () => { cancelled = true; };
+    }, [movie.id]);
 
     return (
         <section
-            className="relative w-full flex items-end pb-20"
+            className="relative w-full flex items-end pb-20 overflow-hidden"
             style={{
                 minHeight: "82vh",
                 background: `linear-gradient(${gradient})`,
             }}
         >
-            {/* Noise overlay for film texture */}
+            {/* TMDB backdrop — fades in once loaded */}
+            {backdropUrl && (
+                <>
+                    {/* Preload silently */}
+                    <img
+                        src={backdropUrl}
+                        alt=""
+                        className="hidden"
+                        onLoad={() => setBackdropLoaded(true)}
+                    />
+                    {backdropLoaded && (
+                        <div
+                            className="absolute inset-0 z-0 transition-opacity duration-700"
+                            style={{
+                                backgroundImage: `url(${backdropUrl})`,
+                                backgroundSize: "cover",
+                                backgroundPosition: "center top",
+                                opacity: 1,
+                            }}
+                        />
+                    )}
+                </>
+            )}
+
+            {/* Dark overlay on top of backdrop */}
             <div
-                className="absolute inset-0"
-                style={{
-                    background: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E\")",
-                    pointerEvents: "none",
-                }}
+                className="absolute inset-0 z-[1]"
+                style={{ background: "rgba(0,0,0,0.45)" }}
             />
 
             {/* Bottom fade to dark */}
             <div
-                className="absolute bottom-0 left-0 right-0 h-48"
+                className="absolute bottom-0 left-0 right-0 h-64 z-[2]"
                 style={{ background: "linear-gradient(to bottom, transparent, #141414)" }}
             />
 
             {/* Left fade */}
             <div
-                className="absolute inset-y-0 left-0 w-1/3"
-                style={{ background: "linear-gradient(to right, rgba(0,0,0,0.4), transparent)" }}
+                className="absolute inset-y-0 left-0 w-2/5 z-[2]"
+                style={{ background: "linear-gradient(to right, rgba(0,0,0,0.6), transparent)" }}
             />
 
             {/* Content */}
             <div className="relative z-10 px-12 max-w-2xl">
-                {/* #1 badge */}
                 <div className="flex items-center gap-2 mb-4">
                     <span className="text-xs font-bold tracking-[0.2em] text-zinc-400 uppercase">
                         #{rank} Most Popular
                     </span>
                 </div>
 
-                {/* Title */}
                 <h1 className="text-5xl md:text-7xl font-black leading-none mb-3 text-white drop-shadow-lg">
                     {movie.title}
                 </h1>
 
-                {/* Meta */}
                 <div className="flex items-center gap-4 mb-5 text-sm">
-                    {movie.year && (
-                        <span className="text-zinc-300">{movie.year}</span>
-                    )}
+                    {movie.year && <span className="text-zinc-300">{movie.year}</span>}
                     {movie.avg_rating != null && (
                         <span className="text-yellow-400 font-semibold">★ {movie.avg_rating.toFixed(1)}</span>
                     )}
                     {movie.num_ratings != null && (
-                        <span className="text-zinc-400">
-                            {(movie.num_ratings / 1000).toFixed(0)}k ratings
-                        </span>
+                        <span className="text-zinc-400">{(movie.num_ratings / 1000).toFixed(0)}k ratings</span>
                     )}
                 </div>
 
-                {/* Genres */}
                 {genres.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-7">
                         {genres.map((g) => (
@@ -95,7 +120,6 @@ export function HeroSection({ movie, rank = 1, onSelect }: Props) {
                     </div>
                 )}
 
-                {/* CTA buttons */}
                 <div className="flex items-center gap-3">
                     <button
                         className="flex items-center gap-2 px-7 py-3 rounded font-bold text-base text-black transition-opacity hover:opacity-80"

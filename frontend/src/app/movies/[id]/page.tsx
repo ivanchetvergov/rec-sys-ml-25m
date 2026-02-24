@@ -21,6 +21,7 @@ export default async function MoviePage({ params }: PageProps) {
     const genres = movie.genres?.split("|") ?? [];
     const gradient = `linear-gradient(135deg, hsl(${(id * 37) % 360},40%,20%), hsl(${(id * 37 + 120) % 360},35%,12%))`;
     const posterUrl = details?.poster_url;
+    const backdropUrl = details?.backdrop_url;
 
     return (
         <div className="min-h-screen" style={{ background: "var(--bg-primary)", color: "#fff" }}>
@@ -29,11 +30,16 @@ export default async function MoviePage({ params }: PageProps) {
                 className="relative w-full flex items-end"
                 style={{
                     minHeight: "55vh",
-                    background: posterUrl
-                        ? `linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, var(--bg-primary) 100%), url(${posterUrl}) center/cover no-repeat`
+                    background: backdropUrl
+                        ? `url(${backdropUrl}) center/cover no-repeat`
                         : gradient,
                 }}
             >
+                {/* Dark overlay for readability */}
+                {backdropUrl && (
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(0,0,0,0.55)" }} />
+                )}
+
                 {/* Bottom fade */}
                 <div
                     className="absolute bottom-0 left-0 right-0 h-48 pointer-events-none"

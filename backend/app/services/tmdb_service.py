@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _TMDB_BASE = "https://api.themoviedb.org/3"
 _POSTER_BASE = "https://image.tmdb.org/t/p/w500"
+_BACKDROP_BASE = "https://image.tmdb.org/t/p/w1280"
 
 
 class TMDBService:
@@ -60,9 +61,11 @@ class TMDBService:
                 data = resp.json()
 
             poster_path = data.get("poster_path")
+            backdrop_path = data.get("backdrop_path")
             result = {
                 "overview": data.get("overview") or None,
                 "poster_url": f"{_POSTER_BASE}{poster_path}" if poster_path else None,
+                "backdrop_url": f"{_BACKDROP_BASE}{backdrop_path}" if backdrop_path else None,
                 "tagline": data.get("tagline") or None,
                 "runtime": data.get("runtime") or None,
                 "tmdb_rating": data.get("vote_average") or None,
