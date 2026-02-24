@@ -10,7 +10,10 @@ export default function RegisterPage() {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [confirm, setConfirm] = useState('')
-	const [error, setError] = useState<{ field?: string; message: string } | null>(null)
+	const [error, setError] = useState<{
+		field?: string
+		message: string
+	} | null>(null)
 	const [loading, setLoading] = useState(false)
 
 	async function handleSubmit(e: React.FormEvent) {
