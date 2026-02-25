@@ -165,8 +165,7 @@ export function getGenreStats(
 	movieGenres: Record<number, string | null>,
 ): GenreStat[] {
 	const counts: Record<string, number> = {}
-	getWatched().forEach(({ movieId }) => {
-		const genres = movieGenres[movieId]
+	Object.values(movieGenres).forEach(genres => {
 		if (!genres) return
 		genres.split('|').forEach(g => {
 			counts[g] = (counts[g] ?? 0) + 1
