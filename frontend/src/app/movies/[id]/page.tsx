@@ -2,6 +2,7 @@ import { fetchMovie, fetchMovieDetails } from "@/lib/api";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import MoviePageInteractive from "./MoviePageInteractive";
 
 interface PageProps {
     params: { id: string };
@@ -178,6 +179,11 @@ export default async function MoviePage({ params }: PageProps) {
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* ── Interactive section (rating, review, similar) ─────── */}
+                <div className="mt-10">
+                    <MoviePageInteractive movie={movie} />
                 </div>
             </div>
         </div>
