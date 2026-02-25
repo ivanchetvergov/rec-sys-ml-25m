@@ -49,15 +49,22 @@ def run_preprocessing_pipeline(dataset_tag: str = None) -> None:
         preprocessor = Preprocessor()
         merged_df = preprocessor.process(datasets)
 
-        # Step 3: Feature engineering
-        logger.info("\n[STEP 3/5] Engineering features...")
-        feature_engineer = FeatureEngineer()
-        features_df = feature_engineer.engineer_features(merged_df)
-
-        # Step 4: Split into train/val/test
-        logger.info("\n[STEP 4/5] Splitting into train/val/test...")
+        # Step 3: SPLIT FIRST (prevents data leakage in feature engineering)
+        # Temporal split on raw interactions ensures that user/item statistics
+        # in the training features are never computed from val/test ratings.
+        logger.info("\n[STEP 3/5] Splitting into train/val/test (before feature engineering)...")
         splitter = DataSplitter()
-        splits = splitter.temporal_split(features_df, time_column="timestamp")
+        splits_raw = splitter.temporal_split(merged_df, time_column="timestamp")
+
+        # Step 4: Feature engineering — train-only statistics, no leakage
+        logger.info("\n[STEP 4/5] Engineering features (no-leakage mode)...")
+        feature_engineer = FeatureEngineer()
+        train_feats, val_feats, test_feats = feature_engineer.engineer_features_no_leakage(
+            train_df=splits_raw["train"],
+            val_df=splits_raw["val"],
+            test_df=splits_raw["test"],
+        )
+        splits = {"train": train_feats, "val": val_feats, "test": test_feats}
 
         # Step 5: Save to feature store
         logger.info("\n[STEP 5/5] Saving to feature store...")
@@ -74,17 +81,20 @@ def run_preprocessing_pipeline(dataset_tag: str = None) -> None:
         feature_store.save_splits(splits, dataset_tag, metadata)
 
         # Summary
+        n_total = sum(len(s) for s in splits.values())
+        n_cols = len(splits["train"].columns)
         logger.info("\n" + "=" * 80)
         logger.info("Pipeline completed successfully!")
         logger.info(f"Dataset tag: {dataset_tag}")
-        logger.info(f"Total records: {len(features_df):,}")
+        logger.info(f"Total records: {n_total:,}")
         logger.info(f"  Train: {len(splits['train']):,}")
         logger.info(f"  Val:   {len(splits['val']):,}")
         logger.info(f"  Test:  {len(splits['test']):,}")
-        logger.info(f"Total features: {len(features_df.columns)}")
-        logger.info(f"Users: {features_df['userId'].nunique():,}")
-        logger.info(f"Movies: {features_df['movieId'].nunique():,}")
-        logger.info(f"Memory usage: {features_df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+        logger.info(f"Total features: {n_cols}")
+        logger.info(f"Users (train): {splits['train']['userId'].nunique():,}")
+        logger.info(f"Movies (train): {splits['train']['movieId'].nunique():,}")
+        train_mb = splits["train"].memory_usage(deep=True).sum() / 1024**2
+        logger.info(f"Train memory: {train_mb:.2f} MB")
         logger.info("=" * 80)
 
     except Exception as e:

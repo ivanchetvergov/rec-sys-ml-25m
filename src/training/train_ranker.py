@@ -46,12 +46,13 @@ import pandas as pd
 
 from src.config import FEATURE_STORE_PATH
 from src.evaluation.metrics import create_ground_truth, evaluate_recommendations
-from src.models.als_recommender import ALSRecommender
+from src.models.ials_recommender import ImplicitALSRecommender
 from src.models.catboost_ranker import (
     CatBoostRanker,
     RANKER_FEATURE_COLS,
     USER_FEATURE_COLS,
     ITEM_FEATURE_COLS,
+    add_cross_features,
 )
 from src.models.two_stage_recommender import TwoStageRecommender
 
@@ -143,38 +144,48 @@ def build_feature_lookup_tables(
 # ---------------------------------------------------------------------------
 
 def build_ranker_dataset(
-    als_model: ALSRecommender,
+    als_model: ImplicitALSRecommender,
     train_df: pd.DataFrame,
     user_features: pd.DataFrame,
     item_features: pd.DataFrame,
-    n_candidates: int = 300,
+    n_candidates: int = 1000,
     max_users: int = 8000,
     relevance_threshold: float = 4.0,
+    uniform_neg_per_user: int = 200,
     seed: int = 42,
 ) -> pd.DataFrame:
     """Build (user, candidate_item, features, label) dataset for CatBoost.
 
     For every sampled user:
-      - ALS retrieves top-N candidates (no exclusion — hard negatives included)
+      - ImplicitALSRecommender retrieves top-N candidates (hard negatives: ALS-scored, scored high
+        but not positives)
+      - Additionally ``uniform_neg_per_user`` random catalog items are sampled
+        (easy negatives: unseen items, not necessarily near the decision boundary).
+        Mixing hard + random negatives prevents the ranker from only learning to
+        distinguish ALS-top-N items and improves generalisation.
       - Label = 1 if the candidate appears in the user's positives, else 0
       - Feature row = user_features ⊕ item_features ⊕ [als_score]
+
+    Cross-features (user × item interactions) are appended to each row after
+    the main loop so we avoid recomputing indices manually inside the inner loop.
 
     Groups are sorted by userId (required by CatBoost YetiRank: groups must
     appear as contiguous blocks, sorted ascending).
 
     Args:
-        als_model: Fitted ALSRecommender.
+        als_model: Fitted ImplicitALSRecommender.
         train_df: Training split (to determine positives).
         user_features: Per-user feature DataFrame (indexed by userId).
         item_features: Per-item feature DataFrame (indexed by movieId).
         n_candidates: ALS candidates per user (hard negatives + positives).
         max_users: Cap on number of training users (memory/speed tradeoff).
         relevance_threshold: Min rating to count as relevant.
+        uniform_neg_per_user: Extra random negatives per user (catalog sampling).
         seed: RNG seed for user sampling.
 
     Returns:
-        DataFrame with columns: userId, label, *user_feat, *item_feat, als_score
-        Sorted by userId ascending (YetiRank requirement).
+        DataFrame with columns: userId, label, *user_feat, *item_feat, als_score,
+        *cross_feats — sorted by userId ascending (YetiRank requirement).
     """
     rng = np.random.default_rng(seed)
 
@@ -192,7 +203,7 @@ def build_ranker_dataset(
 
     logger.info(
         f"Building ranker dataset: {len(eligible_users):,} users × "
-        f"{n_candidates} candidates"
+        f"{n_candidates} ALS candidates + {uniform_neg_per_user} uniform negatives"
     )
 
     # Pre-build positives dict
@@ -206,9 +217,15 @@ def build_ranker_dataset(
     user_feat_cols = [c for c in USER_FEATURE_COLS if c in user_features.columns]
     item_feat_cols = [c for c in ITEM_FEATURE_COLS if c in item_features.columns]
 
-    rows = []
+    # Pre-build a set of item IDs that have known features — O(1) membership test.
+    item_feat_set: set = set(item_features.index.tolist())
+
+    # Accumulate batches as 2D numpy arrays; vstack at the end is much faster
+    # than building millions of Python lists and calling pd.DataFrame(rows).
+    batches: List[np.ndarray] = []
     n_pos_total = 0
     n_neg_total = 0
+    per_user_als_items: Dict[int, set] = {}  # track per-user ALS coverage
 
     for user_id in eligible_users:
         uid = int(user_id)
@@ -217,7 +234,7 @@ def build_ranker_dataset(
             continue
 
         # Stage 1: get candidates WITH scores, no seen-item exclusion
-        candidate_ids, als_scores = als_model.recommend_with_scores(
+        candidate_ids, als_scores_list = als_model.recommend_with_scores(
             user_id=uid,
             n=n_candidates,
             filter_already_liked=False,  # keep positives in candidate pool
@@ -225,38 +242,110 @@ def build_ranker_dataset(
         if not candidate_ids:
             continue
 
-        uf_vals = user_features.loc[uid].values  # (n_user_feats,)
+        # ── Vectorised candidate processing ──────────────────────────────
+        # Filter to items with known features in a single pass (no per-item .loc)
+        valid_cids = [int(c) for c in candidate_ids if int(c) in item_feat_set]
+        valid_scores = [s for c, s in zip(candidate_ids, als_scores_list)
+                        if int(c) in item_feat_set]
+        if not valid_cids:
+            continue
+
         pos_set = positives_dict.get(uid, set())
+        uf_vals = user_features.loc[uid].values              # (n_user_feats,)
+        itf_batch = item_features.loc[valid_cids].values     # (n_valid, n_item_feats)
+        n_valid = len(valid_cids)
 
-        for item_id, score in zip(candidate_ids, als_scores):
-            iid = int(item_id)
-            if iid not in item_features.index:
+        labels = np.array([1 if iid in pos_set else 0 for iid in valid_cids],
+                          dtype=np.int8)
+        uid_arr = np.full(n_valid, uid, dtype=np.float64)
+        uf_rep = np.tile(uf_vals.astype(np.float64), (n_valid, 1))
+        als_arr = np.array(valid_scores, dtype=np.float64)
+
+        batch = np.column_stack([uid_arr, labels, uf_rep,
+                                 itf_batch.astype(np.float64), als_arr])
+        batches.append(batch)
+
+        n_valid_pos = int(labels.sum())
+        n_pos_total += n_valid_pos
+        n_neg_total += n_valid - n_valid_pos
+        per_user_als_items[uid] = set(valid_cids)
+
+    # ── Uniform random negatives ──────────────────────────────────────────
+    # Sample ``uniform_neg_per_user`` random items per user from the catalog,
+    # excluding items already covered by ALS candidates and positives.
+    # These "easy" negatives diversify the training distribution and prevent
+    # the ranker from only learning ALS-domain boundaries.
+    # ALS scores are computed via dot-product (not dummy 0.0) so the ranker
+    # cannot exploit a trivial ``score==0 → negative`` shortcut.
+    if uniform_neg_per_user > 0:
+        # Build a Python set for O(|exclude|) set-subtraction (avoids np.isin
+        # which is O(catalog × exclude) per user = hundreds of millions of ops).
+        catalog_set: set = {
+            iid for iid in item_features.index if iid in als_model.item_id_map_
+        }
+
+        for uid, uid_als_items in per_user_als_items.items():
+            pos_set = positives_dict.get(uid, set())
+            exclude = uid_als_items | pos_set
+            eligible_set = catalog_set - exclude          # O(|exclude|), not O(|catalog|)
+            if not eligible_set:
                 continue
-            if_vals = item_features.loc[iid].values  # (n_item_feats,)
-            label = 1 if iid in pos_set else 0
 
-            row = [uid, label] + uf_vals.tolist() + if_vals.tolist() + [float(score)]
-            rows.append(row)
+            eligible_catalog = np.array(list(eligible_set), dtype=np.int64)
+            sample_n = min(uniform_neg_per_user, len(eligible_catalog))
+            sampled_items = rng.choice(eligible_catalog, sample_n, replace=False)
 
-            if label == 1:
-                n_pos_total += 1
-            else:
-                n_neg_total += 1
+            # Filter to items still present in features (safety check)
+            sampled_valid = [int(iid) for iid in sampled_items if int(iid) in item_feat_set]
+            if not sampled_valid:
+                continue
 
-    if not rows:
+            # ── Compute actual ALS scores for sampled items ───────────────
+            # Using real scores prevents the ranker from learning a trivial
+            # "score==0 → negative" shortcut that would collapse on real traffic.
+            user_idx = als_model.user_id_map_[uid]
+            user_factor = als_model._model.user_factors[user_idx]   # (k,)
+            item_indices = [als_model.item_id_map_[iid] for iid in sampled_valid]
+            als_item_factors = als_model._model.item_factors[item_indices]  # (n, k)
+            uniform_scores = (als_item_factors @ user_factor).astype(np.float64)
+
+            uf_vals = user_features.loc[uid].values
+            itf_batch = item_features.loc[sampled_valid].values
+            n_sample = len(sampled_valid)
+
+            uid_arr = np.full(n_sample, uid, dtype=np.float64)
+            labels_arr = np.zeros(n_sample, dtype=np.int8)
+            uf_rep = np.tile(uf_vals.astype(np.float64), (n_sample, 1))
+
+            batch = np.column_stack([uid_arr, labels_arr, uf_rep,
+                                     itf_batch.astype(np.float64), uniform_scores])
+            batches.append(batch)
+            n_neg_total += n_sample
+
+    if not batches:
         raise RuntimeError("Ranker dataset is empty — check ALS model and feature tables.")
 
     col_names = ["userId", "label"] + user_feat_cols + item_feat_cols + ["als_score"]
-    df = pd.DataFrame(rows, columns=col_names)
+    df = pd.DataFrame(np.vstack(batches), columns=col_names)
+    # Restore integer userId and label dtypes lost during float64 stacking
+    df["userId"] = df["userId"].astype(np.int64)
+    df["label"] = df["label"].astype(np.int8)
+
+    # ── Cross-features ────────────────────────────────────────────────────
+    # Driven by CROSS_FEATURE_DEFINITIONS — adding a new cross-feature only
+    # requires one change in catboost_ranker.py; training and inference both
+    # pick it up automatically.
+    add_cross_features(df)
 
     # Sort by userId — CatBoost YetiRank requires contiguous groups sorted asc
     df = df.sort_values("userId").reset_index(drop=True)
 
-    pos_rate = 100.0 * n_pos_total / (n_pos_total + n_neg_total)
+    pos_rate = 100.0 * n_pos_total / max(n_pos_total + n_neg_total, 1)
     logger.info(
         f"Ranker dataset: {len(df):,} rows, "
         f"{n_pos_total:,} positives ({pos_rate:.1f}%), "
-        f"{n_neg_total:,} negatives"
+        f"{n_neg_total:,} negatives "
+        f"({len(per_user_als_items):,} users)"
     )
     return df
 
@@ -330,14 +419,14 @@ def train_and_evaluate(
     als_iterations: int = 20,
     als_regularization: float = 0.01,
     als_alpha: float = 15.0,
-    als_confidence_mode: str = "linear",
+    als_confidence_mode: str = "log",
     # Ranker params
     ranker_iterations: int = 500,
     ranker_learning_rate: float = 0.05,
     ranker_depth: int = 6,
     ranker_loss: str = "YetiRank",
     # Dataset params
-    n_candidates: int = 300,
+    n_candidates: int = 1000,
     max_ranker_users: int = 8000,
     relevance_threshold: float = 4.0,
     k_values: List[int] = [5, 10, 20],
@@ -377,6 +466,7 @@ def train_and_evaluate(
             "ranker_depth": ranker_depth,
             "ranker_loss": ranker_loss,
             "n_candidates": n_candidates,
+            "uniform_neg_per_user": 200,
             "max_ranker_users": max_ranker_users,
             "relevance_threshold": relevance_threshold,
             "sample_frac": sample_frac or 1.0,
@@ -402,7 +492,7 @@ def train_and_evaluate(
         logger.info("Stage 1 — Training iALS Candidate Generator")
         logger.info("=" * 80)
 
-        als_model = ALSRecommender(
+        als_model = ImplicitALSRecommender(
             factors=als_factors,
             iterations=als_iterations,
             regularization=als_regularization,
@@ -430,6 +520,7 @@ def train_and_evaluate(
             n_candidates=n_candidates,
             max_users=max_ranker_users,
             relevance_threshold=relevance_threshold,
+            uniform_neg_per_user=200,
             seed=seed,
         )
         build_time = round(time.time() - t_build, 2)
@@ -442,10 +533,15 @@ def train_and_evaluate(
         )
         logger.info(f"Dataset built in {build_time}s")
 
-        # Train/val split on ranker dataset (last 15% of users by ID → val)
-        unique_users_sorted = np.sort(ranker_df["userId"].unique())
-        val_cutoff = unique_users_sorted[int(len(unique_users_sorted) * 0.85)]
-        ranker_train_mask = ranker_df["userId"] < val_cutoff
+        # Train/val split on ranker dataset — random 85/15 user split (not by ID)
+        # Splitting by user ID order correlates with signup time and biases early stopping;
+        # a random shuffle ensures the val set is representative.
+        unique_users_all = ranker_df["userId"].unique()
+        rng_val = np.random.default_rng(seed + 1)
+        shuffled_users = rng_val.permutation(unique_users_all)
+        n_val_users = max(1, int(len(shuffled_users) * 0.15))
+        val_user_set = set(shuffled_users[-n_val_users:].tolist())
+        ranker_train_mask = ~ranker_df["userId"].isin(val_user_set)
         X_rt = ranker_df[ranker_train_mask]
         X_rv = ranker_df[~ranker_train_mask]
 
@@ -566,7 +662,7 @@ def train_and_evaluate(
         logger.info("\n" + "=" * 80)
         logger.info("TRAINING SUMMARY")
         logger.info("=" * 80)
-        logger.info(f"Stage 1 : ALSRecommender  factors={als_factors}, "
+        logger.info(f"Stage 1 : ImplicitALSRecommender  factors={als_factors}, "
                     f"mode={als_confidence_mode}, time={als_time}s")
         logger.info(f"Stage 2 : CatBoostRanker  loss={ranker_loss}, "
                     f"best_iter={ranker.best_iteration_}, time={ranker_time}s")
@@ -594,7 +690,7 @@ def main() -> None:
     als.add_argument("--als-iterations", type=int, default=20)
     als.add_argument("--als-regularization", type=float, default=0.01)
     als.add_argument("--als-alpha", type=float, default=15.0)
-    als.add_argument("--als-confidence-mode", type=str, default="linear",
+    als.add_argument("--als-confidence-mode", type=str, default="log",
                      choices=["linear", "log", "binary"])
 
     # Ranker
@@ -607,7 +703,7 @@ def main() -> None:
 
     # Dataset
     ds = parser.add_argument_group("Dataset")
-    ds.add_argument("--n-candidates", type=int, default=300,
+    ds.add_argument("--n-candidates", type=int, default=1000,
                     help="ALS candidates per user for ranker training")
     ds.add_argument("--max-ranker-users", type=int, default=8000,
                     help="Max users to use for ranker training dataset")

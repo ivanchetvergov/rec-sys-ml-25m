@@ -1,11 +1,11 @@
 # Makefile for RecSys Project
 # Python environment: /Users/timuradiatullin/myvenv
 
-PYTHON = /Users/timuradiatullin/myvenv/bin/python
-PIP = /Users/timuradiatullin/myvenv/bin/pip
+# PYTHON = /Users/timuradiatullin/myvenv/bin/python
+# PIP = /Users/timuradiatullin/myvenv/bin/pip
 
-# PYTHON = /Users/ivan/myvenv/bin/python
-# PIP = /Users/ivan/myvenv/bin/pip
+PYTHON = /Users/ivan/myvenv/bin/python
+PIP = /Users/ivan/myvenv/bin/pip
 
 
 # Node — auto-detect common macOS locations; override with: make frontend NPM=/path/to/npm
@@ -15,7 +15,7 @@ NPM ?= $(shell command -v npm 2>/dev/null \
          || echo npm)
 
 # Default dataset tag (use latest or set via environment variable)
-DATASET_TAG ?= ml_v_20260215_184134
+DATASET_TAG ?= ml_v_20260225_225448
 MLFLOW_PORT ?= 5000
 
 .PHONY: help install preprocess extract-movies build-similarity \
@@ -116,7 +116,7 @@ train-als:
 		--factors 128 \
 		--iterations 20 \
 		--alpha 15.0 \
-		--confidence-mode linear \
+		--confidence-mode log \
 		--relevance-threshold 4.0 \
 		--k-values 5 10 20
 
@@ -127,7 +127,7 @@ train-als-sample:
 		--factors 64 \
 		--iterations 15 \
 		--alpha 15.0 \
-		--confidence-mode linear \
+		--confidence-mode log \
 		--k-values 5 10 20
 
 train-ranker:
@@ -135,12 +135,12 @@ train-ranker:
 		--dataset-tag $(DATASET_TAG) \
 		--als-factors 128 \
 		--als-iterations 20 \
-		--als-confidence-mode linear \
+		--als-confidence-mode log \
 		--ranker-iterations 600 \
 		--ranker-depth 6 \
 		--ranker-loss YetiRank \
-		--n-candidates 300 \
-		--max-ranker-users 10000 \
+		--n-candidates 1000 \
+		--max-ranker-users 4000 \
 		--k-values 5 10 20
 
 train-ranker-sample:
@@ -149,9 +149,10 @@ train-ranker-sample:
 		--sample-frac 0.1 \
 		--als-factors 64 \
 		--als-iterations 15 \
+		--als-confidence-mode log \
 		--ranker-iterations 300 \
-		--n-candidates 200 \
-		--max-ranker-users 3000 \
+		--n-candidates 500 \
+		--max-ranker-users 1000 \
 		--k-values 5 10 20
 
 mlflow-ui:

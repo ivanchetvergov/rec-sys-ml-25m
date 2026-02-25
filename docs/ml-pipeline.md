@@ -292,7 +292,7 @@ python -m src.training.train_collaborative \
 ### Загрузка сохранённой модели
 
 ```python
-from src.models.collaborative_filtering import SVDRecommender
+from src.models.als_recommender import SVDRecommender
 
 model = SVDRecommender.load("path/to/artifacts")
 

@@ -1,7 +1,7 @@
 """Two-Stage Recommender: ALS Candidate Generation + CatBoost Re-ranking.
 
 Pipeline:
-    1. ALSRecommender  →  top-N candidates per user  (~1-2ms)
+    1. ImplicitALSRecommender  →  top-N candidates per user  (~1-2ms)
     2. CatBoostRanker  →  re-rank candidates to top-K  (~5-10ms)
 
 For cold-start users (unseen during ALS training) the pipeline falls back
@@ -25,8 +25,13 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.models.als_recommender import ALSRecommender
-from src.models.catboost_ranker import CatBoostRanker, RANKER_FEATURE_COLS
+from src.models.ials_recommender import ImplicitALSRecommender
+from src.models.catboost_ranker import (
+    CatBoostRanker,
+    RANKER_FEATURE_COLS,
+    CROSS_FEATURE_COLS,
+    add_cross_features,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ class TwoStageRecommender:
     """Full inference pipeline: ALS retrieval → CatBoost ranking.
 
     Args:
-        candidate_model: Fitted ALSRecommender (stage 1).
+        candidate_model: Fitted ImplicitALSRecommender (stage 1).
         ranker: Fitted CatBoostRanker (stage 2).
         user_features: DataFrame indexed by userId, columns = USER_FEATURE_COLS.
         item_features: DataFrame indexed by movieId, columns = ITEM_FEATURE_COLS.
@@ -44,7 +49,7 @@ class TwoStageRecommender:
 
     def __init__(
         self,
-        candidate_model: ALSRecommender,
+        candidate_model: ImplicitALSRecommender,
         ranker: CatBoostRanker,
         user_features: pd.DataFrame,
         item_features: pd.DataFrame,
@@ -64,7 +69,7 @@ class TwoStageRecommender:
         self,
         user_id: int,
         n: int = 10,
-        n_candidates: int = 200,
+        n_candidates: int = 1000,
         exclude_items: Optional[set] = None,
         explain: bool = False,
     ) -> List[Dict]:
@@ -73,7 +78,8 @@ class TwoStageRecommender:
         Args:
             user_id: Target user.
             n: Final number of recommendations.
-            n_candidates: Stage-1 candidate list size.
+            n_candidates: Stage-1 candidate list size (must match training value
+                to avoid ALS-score distribution shift; default=1000).
             exclude_items: Item IDs to suppress (e.g. already seen).
             explain: If True, attach SHAP explanation to each result.
 
@@ -124,7 +130,7 @@ class TwoStageRecommender:
         self,
         user_ids: List[int],
         n: int = 10,
-        n_candidates: int = 200,
+        n_candidates: int = 1000,
         exclude_items_per_user: Optional[Dict[int, set]] = None,
     ) -> Dict[int, List[Dict]]:
         """Batch inference for multiple users.
@@ -185,6 +191,10 @@ class TwoStageRecommender:
 
         X = pd.concat([user_df, itf], axis=1)
         X["als_score"] = valid_scores
+
+        # Cross-features — driven by CROSS_FEATURE_DEFINITIONS so this stays
+        # in sync with training automatically when new cross-features are added.
+        add_cross_features(X)
 
         # Ensure column order matches training
         feature_cols = [c for c in RANKER_FEATURE_COLS if c in X.columns]
@@ -267,7 +277,7 @@ class TwoStageRecommender:
         """Load TwoStageRecommender from directory saved by :meth:`save`."""
         path = Path(path)
 
-        candidate_model = ALSRecommender.load(path / "als")
+        candidate_model = ImplicitALSRecommender.load(path / "als")
         ranker = CatBoostRanker.load(path / "ranker")
         user_features = pd.read_parquet(path / "user_features.parquet")
         item_features = pd.read_parquet(path / "item_features.parquet")

@@ -30,7 +30,9 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # Feature column definitions — must match feature store schema
+# Feature column definitions — must match feature store schema
 USER_FEATURE_COLS: List[str] = [
+    # Rating behaviour
     "user_avg_rating",
     "user_rating_std",
     "user_num_ratings",
@@ -38,6 +40,29 @@ USER_FEATURE_COLS: List[str] = [
     "user_max_rating",
     "user_activity_days",
     "user_rating_velocity",
+    # Recency (lower = more recently active)
+    "user_days_since_last_rating",
+    # Genre affinity (mean rating per genre; filled with user avg for unseen genres)
+    "user_affinity_drama",
+    "user_affinity_comedy",
+    "user_affinity_action",
+    "user_affinity_thriller",
+    "user_affinity_adventure",
+    "user_affinity_romance",
+    "user_affinity_sci_fi",
+    "user_affinity_crime",
+    "user_affinity_fantasy",
+    "user_affinity_children",
+    "user_affinity_mystery",
+    "user_affinity_horror",
+    "user_affinity_animation",
+    "user_affinity_war",
+    "user_affinity_imax",
+    "user_affinity_musical",
+    "user_affinity_western",
+    "user_affinity_documentary",
+    "user_affinity_film_noir",
+    "user_affinity_(no genres listed)",
 ]
 
 ITEM_FEATURE_COLS: List[str] = [
@@ -73,8 +98,40 @@ ITEM_FEATURE_COLS: List[str] = [
     "genre_(no genres listed)",
 ]
 
+# Cross-features: user × item multiplicative interactions
+# CROSS_FEATURE_DEFINITIONS maps output_column → (left_col, right_col).
+# This single source of truth is used both at training time (build_ranker_dataset)
+# and at inference time (_build_feature_matrix) so adding a new cross-feature
+# only requires one edit here.
+CROSS_FEATURE_DEFINITIONS: Dict[str, Tuple[str, str]] = {
+    "user_avg_x_movie_avg": ("user_avg_rating", "movie_avg_rating"),       # quality alignment
+    "user_activity_x_popularity": ("user_num_ratings", "movie_popularity"), # activeness × reach
+}
+
+CROSS_FEATURE_COLS: List[str] = list(CROSS_FEATURE_DEFINITIONS.keys())
+
 # All features fed into the ranker (order matters — must be consistent)
-RANKER_FEATURE_COLS: List[str] = USER_FEATURE_COLS + ITEM_FEATURE_COLS + ["als_score"]
+RANKER_FEATURE_COLS: List[str] = (
+    USER_FEATURE_COLS + ITEM_FEATURE_COLS + ["als_score"] + CROSS_FEATURE_COLS
+)
+
+
+def add_cross_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute and append cross-features defined in CROSS_FEATURE_DEFINITIONS.
+
+    Works in-place on ``df`` (returns the same object).  Silently skips any
+    cross-feature whose input columns are absent (e.g. minimal test DataFrames).
+
+    Args:
+        df: DataFrame that already contains USER_FEATURE_COLS + ITEM_FEATURE_COLS.
+
+    Returns:
+        The same DataFrame with cross-feature columns added.
+    """
+    for feat_name, (col_a, col_b) in CROSS_FEATURE_DEFINITIONS.items():
+        if col_a in df.columns and col_b in df.columns:
+            df[feat_name] = (df[col_a] * df[col_b]).astype(np.float32)
+    return df
 
 
 class CatBoostRanker:
@@ -96,7 +153,7 @@ class CatBoostRanker:
         learning_rate: float = 0.05,
         depth: int = 6,
         loss_function: str = "YetiRank",
-        early_stopping_rounds: int = 50,
+        early_stopping_rounds: int = 100,
         random_seed: int = 42,
         verbose: int = 100,
     ) -> None:

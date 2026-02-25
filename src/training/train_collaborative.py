@@ -1,6 +1,6 @@
 """Train Collaborative Filtering (SVD) recommender with MLflow tracking.
 
-Loads pre-processed splits from the feature store, fits an SVDRecommender,
+Loads pre-processed splits from the feature store, fits an ExplicitALSRecommender,
 evaluates on validation and test sets, and logs everything to MLflow.
 
 Example usage:
@@ -29,7 +29,7 @@ import pandas as pd
 
 from src.config import FEATURE_STORE_PATH
 from src.evaluation.metrics import create_ground_truth, evaluate_recommendations
-from src.models.collaborative_filtering import SVDRecommender
+from src.models.als_recommender import ExplicitALSRecommender
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,7 +104,7 @@ def load_data(
 
 
 def _build_recommendations(
-    model: SVDRecommender,
+    model: ExplicitALSRecommender,
     eval_df: pd.DataFrame,
     seen_df: pd.DataFrame,
     max_users: int,
@@ -113,7 +113,7 @@ def _build_recommendations(
     """Generate recommendation dicts for a sample of users.
 
     Args:
-        model: Fitted SVDRecommender.
+        model: Fitted ExplicitALSRecommender.
         eval_df: DataFrame containing the users to evaluate (val or test).
         seen_df: DataFrame of interactions to exclude (train [+ val]).
         max_users: Cap on number of users to evaluate (for speed).
@@ -160,7 +160,7 @@ def train_and_evaluate(
     run_name: Optional[str] = None,
     seed: int = 42,
 ) -> Dict[str, float]:
-    """Train SVDRecommender and log everything to MLflow.
+    """Train ExplicitALSRecommender and log everything to MLflow.
 
     Args:
         dataset_tag: Feature store version tag.
@@ -192,7 +192,7 @@ def train_and_evaluate(
         logger.info("=" * 80)
 
         # ---- log hyper-parameters ----------------------------------------
-        mlflow.log_param("model_type", "SVDRecommender")
+        mlflow.log_param("model_type", "ExplicitALSRecommender")
         mlflow.log_param("dataset_tag", dataset_tag)
         mlflow.log_param("factors", factors)
         mlflow.log_param("sample_frac", sample_frac or 1.0)
@@ -217,10 +217,10 @@ def train_and_evaluate(
 
         # ---- train model -----------------------------------------------------
         logger.info("\n" + "=" * 80)
-        logger.info("Training SVDRecommender...")
+        logger.info("Training ExplicitALSRecommender...")
         logger.info("=" * 80)
 
-        model = SVDRecommender(factors=factors, random_state=seed)
+        model = ExplicitALSRecommender(factors=factors, random_state=seed)
 
         t_train = time.time()
         model.fit(train_df)
@@ -294,7 +294,7 @@ def train_and_evaluate(
 
         # Summary JSON alongside model artifacts
         summary = {
-            "model_type": "SVDRecommender",
+            "model_type": "ExplicitALSRecommender",
             "dataset_tag": dataset_tag,
             "factors": int(model.user_factors_.shape[1]),
             "n_users": model.n_users_,
@@ -315,7 +315,7 @@ def train_and_evaluate(
         logger.info("\n" + "=" * 80)
         logger.info("TRAINING SUMMARY")
         logger.info("=" * 80)
-        logger.info(f"Model      : SVDRecommender (k={model.user_factors_.shape[1]})")
+        logger.info(f"Model      : ExplicitALSRecommender (k={model.user_factors_.shape[1]})")
         logger.info(f"Dataset    : {dataset_tag}")
         logger.info(f"Sample frac: {sample_frac or 1.0}")
         logger.info(f"Train time : {train_time:.2f}s")

@@ -1,10 +1,10 @@
 {
-  "model_type": "ALSRecommender",
+  "model_type": "ImplicitALSRecommender",
   "factors": 128,
   "iterations": 20,
   "regularization": 0.01,
   "alpha": 15.0,
-  "confidence_mode": "linear",
+  "confidence_mode": "log",
   "random_state": 42,
   "n_users": 121637,
   "n_items": 17695

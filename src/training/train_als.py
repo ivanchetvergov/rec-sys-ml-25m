@@ -34,7 +34,7 @@ import pandas as pd
 
 from src.config import FEATURE_STORE_PATH
 from src.evaluation.metrics import create_ground_truth, evaluate_recommendations
-from src.models.als_recommender import ALSRecommender
+from src.models.ials_recommender import ImplicitALSRecommender
 
 logging.basicConfig(
     level=logging.INFO,
