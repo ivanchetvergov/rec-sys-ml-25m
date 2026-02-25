@@ -1,4 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_USER=recsys
+      - POSTGRES_PASSWORD=recsys_secret
+      - POSTGRES_DB=recsys
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U recsys -d recsys']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
     expose:
@@ -17,6 +36,10 @@ services:
       - PYTHONUNBUFFERED=1
       - PROJECT_ROOT=/app
       - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://recsys:recsys_secret@postgres:5432/recsys
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
@@ -59,3 +82,6 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  postgres_data:
