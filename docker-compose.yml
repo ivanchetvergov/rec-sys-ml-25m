@@ -6,7 +6,7 @@ services:
     environment:
       - POSTGRES_USER=recsys
       - POSTGRES_PASSWORD=recsys_secret
-      - POSTGRES_DB=recsys
+      - POSTGRES_DB=git
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

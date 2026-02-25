@@ -351,12 +351,12 @@ export default function MoviePageInteractive({ movie }: Props) {
             {/* ── Similar movies ───────────────────────────────────────────── */}
             {similar.length > 0 && (
                 <div>
-                    <div className='flex items-baseline gap-3 mb-4'>
+                    <div className='flex items-baseline mb-4'>
                         <h2 className='text-lg font-bold text-white'>Similar movies</h2>
                         {similarModel && (
-                            <span className='text-xs text-zinc-500'>
+                            <span className='ml-auto text-xs text-zinc-500'>
                                 {similarModel === 'als_cosine'
-                                    ? 'iALS · ALS Cosine Similarity'
+                                    ? 'iALS · Cosine Similarity'
                                     : similarModel === 'genre_jaccard'
                                         ? 'Genre Jaccard fallback'
                                         : null}
