@@ -1,6 +1,8 @@
 # ML Pipeline
 
-Полный ETL/ELT пайплайн от сырых CSV до готового feature store и обученной модели.
+Полный ETL/ELT пайплайн от сырых CSV до готового feature store и обученных моделей.
+
+> Детальное описание каждой ML-модели, её алгоритма, артефактов и интеграции с бэкендом — в [models.md](models.md).
 
 ## Запуск
 
@@ -20,6 +22,12 @@ make train-als                 # полный датасет
 make train-ranker-sample       # 10% данных (~5-10 мин)
 make train-ranker              # полный датасет (~30-60 мин)
 
+# Извлечь лёгкий каталог фильмов
+make extract-movies            # → data/processed/movies.parquet (~1 MB)
+
+# Собрать индекс похожих фильмов (после обучения ALS)
+make build-similarity          # → data/processed/similarity_index.parquet (~3 MB)
+
 # Посмотреть эксперименты в MLflow UI
 make mlflow-ui        # http://localhost:5000
 make mlflow-ui-alt    # http://localhost:5001 (если 5000 занят AirPlay)
@@ -38,7 +46,9 @@ src/
 ├── data_splitter.py                 ← temporal split 70/15/15
 ├── feature_store.py                 ← сохранение parquet + metadata.json
 ├── pipeline/
-│   └── preprocess_pipeline.py      ← оркестратор (5 шагов)
+│   ├── preprocess_pipeline.py      ← оркестратор ETL (5 шагов)
+│   ├── extract_movies.py           ← выжимка каталога → movies.parquet
+│   └── build_similarity_index.py   ← ALS cosine → similarity_index.parquet
 ├── models/
 │   ├── popularity_based.py         ← PopularityRecommender  (baseline)
 │   ├── collaborative_filtering.py  ← SVDRecommender         (reference)
@@ -437,3 +447,45 @@ VAL_SPLIT   = 0.15
 TEST_SPLIT  = 0.15
 TOP_GENRES  = 20        # сколько жанров брать как бинарные признаки
 ```
+
+---
+
+## Пайплайн извлечения каталога (`pipeline/extract_movies.py`)
+
+Производит `data/processed/movies.parquet` — лёгкий файл (~17K строк, ~1 MB) для бэкенда.
+
+Читает `train.parquet` из feature store, дедуплицирует по `movieId`, добавляет `imdbId`/`tmdbId` из `links.csv`, сохраняет только нужные колонки:
+
+```
+movieId, title, genres, year,
+movie_avg_rating, movie_num_ratings, movie_popularity,
+imdbId, tmdbId
+```
+
+```bash
+make extract-movies
+```
+
+Бэкенд загружает этот файл вместо полного train.parquet — экономия памяти ~500×.
+
+---
+
+## Пайплайн сборки индекса похожих фильмов (`pipeline/build_similarity_index.py`)
+
+Производит `data/processed/similarity_index.parquet` — top-20 похожих фильмов для каждого из 17K фильмов.
+
+**Алгоритм (ALS cosine):**
+
+1. Загрузить `item_factors` из `implicit_model.pkl` — shape `(17695, 128)`
+2. L2-нормализовать
+3. Батчевое матричное умножение `batch @ normed.T` (batch_size=2000)
+4. `np.argpartition` для top-20 без полной сортировки
+5. Перевести индексы → `movieId` через `idx_to_item`
+
+**Fallback** (если ALS не обучен): Jaccard по жанровому вектору.
+
+```bash
+make build-similarity   # ~1-2 мин
+```
+
+Запускать после каждого переобучения `make train-ranker`.

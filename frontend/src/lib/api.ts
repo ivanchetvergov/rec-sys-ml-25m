@@ -144,6 +144,12 @@ export async function fetchPersonalRecs(
 	}
 }
 
+export interface SimilarMoviesResult {
+	movies: Movie[]
+	/** "als_cosine" | "genre_jaccard" | "not_available" */
+	model: string
+}
+
 /**
  * Fetch item-item similar movies for a given movieId.
  * Uses ALS cosine similarity index on the backend (falls back to genre Jaccard).
@@ -152,16 +158,16 @@ export async function fetchPersonalRecs(
 export async function fetchSimilarMovies(
 	movieId: number,
 	limit = 20,
-): Promise<Movie[]> {
+): Promise<SimilarMoviesResult> {
 	try {
 		const res = await fetch(
 			`${API_URL}/api/movies/${movieId}/similar?limit=${limit}`,
 			{ cache: 'no-store' },
 		)
-		if (!res.ok) return []
+		if (!res.ok) return { movies: [], model: '' }
 		const data = await res.json()
-		return data.movies ?? []
+		return { movies: data.movies ?? [], model: data.model ?? '' }
 	} catch {
-		return []
+		return { movies: [], model: '' }
 	}
 }

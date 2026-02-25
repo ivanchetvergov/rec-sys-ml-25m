@@ -125,6 +125,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 
     // ── similar movies
     const [similar, setSimilar] = useState<SimMovie[]>([])
+    const [similarModel, setSimilarModel] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
 
     const storageKey = `movie_review_${movie.id}`
@@ -168,7 +169,10 @@ export default function MoviePageInteractive({ movie }: Props) {
     // ── Load similar movies (ALS cosine similarity via API)
     useEffect(() => {
         fetchSimilarMovies(movie.id, 24)
-            .then(setSimilar)
+            .then(({ movies, model }) => {
+                setSimilar(movies)
+                setSimilarModel(model)
+            })
             .catch(() => { })
     }, [movie.id])
 
@@ -347,7 +351,18 @@ export default function MoviePageInteractive({ movie }: Props) {
             {/* ── Similar movies ───────────────────────────────────────────── */}
             {similar.length > 0 && (
                 <div>
-                    <h2 className='text-lg font-bold text-white mb-4'>Similar movies</h2>
+                    <div className='flex items-baseline gap-3 mb-4'>
+                        <h2 className='text-lg font-bold text-white'>Similar movies</h2>
+                        {similarModel && (
+                            <span className='text-xs text-zinc-500'>
+                                {similarModel === 'als_cosine'
+                                    ? 'iALS · ALS Cosine Similarity'
+                                    : similarModel === 'genre_jaccard'
+                                        ? 'Genre Jaccard fallback'
+                                        : null}
+                            </span>
+                        )}
+                    </div>
                     <div className='relative'>
                         {/* Left arrow */}
                         <button

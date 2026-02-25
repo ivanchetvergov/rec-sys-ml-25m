@@ -8,6 +8,17 @@ ReDoc: `http://localhost:8000/api/redoc`
 
 ## Эндпоинты
 
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/api/health` | Health check |
+| GET | `/api/movies/popular` | Топ популярных фильмов |
+| GET | `/api/movies/personal` | Персональные рекомендации (iALS + CatBoost) |
+| GET | `/api/movies/{id}` | Один фильм по id |
+| GET | `/api/movies/{id}/similar` | Похожие фильмы (ALS cosine) |
+| GET | `/api/movies/{id}/details` | TMDB-обогащённые детали (постер, обзор) |
+
+---
+
 ### `GET /api/health`
 
 Проверка работоспособности сервера.
@@ -130,8 +141,106 @@ curl "http://localhost:8000/api/movies/popular?limit=100&offset=200"
 |-------|------|----------|
 | `POST` | `/api/auth/register` | Регистрация пользователя |
 | `POST` | `/api/auth/login` | Вход, получение JWT |
-| `GET` | `/api/movies/{id}` | Страница фильма |
 | `GET` | `/api/movies/search?q=` | Поиск по названию |
-| `GET` | `/api/recommendations/home` | Персональные рекомендации |
 | `POST` | `/api/movies/{id}/interaction` | Лайк / оценка / watchlist |
 | `GET` | `/api/admin/stats` | Статистика платформы |
+
+---
+
+### `GET /api/movies/personal`
+
+Персональные рекомендации для пользователя. Использует двухстадийный пайплайн iALS + CatBoost. При cold-start или отсутствии модели — popularity fallback.
+
+#### Query параметры
+
+| Параметр | Тип | По умолчанию | Ограничения | Описание |
+|----------|-----|--------------|-------------|----------|
+| `user_id` | int | **обязателен** | — | MovieLens userId |
+| `limit` | int | `20` | 1 ≤ x ≤ 100 | Количество рекомендаций |
+
+#### Ответ `200 OK`
+
+```json
+{
+  "user_id": 123,
+  "model": "two_stage",
+  "total_returned": 20,
+  "movies": [
+    {
+      "id": 318,
+      "score": 0.924,
+      "title": "Shawshank Redemption, The (1994)",
+      "genres": "Crime|Drama",
+      "year": 1994,
+      "avg_rating": 4.43,
+      "num_ratings": 97999,
+      "popularity_score": 16.1084,
+      "tmdb_id": 278
+    }
+  ]
+}
+```
+
+Поле `model`: `"two_stage"` — использована ML-модель, `"popularity_fallback"` — колд-старт или модель не загружена.
+
+---
+
+### `GET /api/movies/{id}/similar`
+
+Похожие фильмы на основе косинусного сходства ALS item-vectors. Индекс предвычислен (`make build-similarity`).
+
+#### Query параметры
+
+| Параметр | Тип | По умолчанию | Ограничения | Описание |
+|----------|-----|--------------|-------------|----------|
+| `limit` | int | `20` | 1 ≤ x ≤ 50 | Число похожих фильмов |
+
+#### Ответ `200 OK`
+
+```json
+{
+  "movie_id": 1,
+  "model": "als_cosine",
+  "total_returned": 20,
+  "movies": [ { "id": 3114, "title": "Toy Story 2 (1999)", ... } ]
+}
+```
+
+Поле `model`: `"als_cosine"` — ALS-индекс доступен, `"not_available"` — индекс не найден (запустите `make build-similarity`).
+
+---
+
+### `GET /api/movies/{id}/details`
+
+TMDB-обогащённые детали для одного фильма: постер, описание, трейлер. Требует `TMDB_API_KEY` в `.env`.
+
+#### Ответ `200 OK`
+
+```json
+{
+  "id": 1,
+  "title": "",
+  "overview": "Led by Woody, Andy's toys live happily...",
+  "poster_url": "https://image.tmdb.org/t/p/w500/...",
+  "backdrop_url": "https://image.tmdb.org/t/p/w1280/...",
+  "tagline": "The adventure takes off!",
+  "runtime": 81,
+  "tmdb_rating": 7.9,
+  "tmdb_votes": 16844,
+  "release_date": "1995-10-30"
+}
+```
+
+Если `TMDB_API_KEY` не задан или `tmdb_id` у фильма отсутствует — возвращает `404`.
+
+---
+
+### `GET /api/movies/{id}`
+
+Один фильм по MovieLens `movieId`. Возвращает стандартный объект `Movie`.
+
+#### Ответ `404 Not Found`
+
+```json
+{ "detail": "Movie 99999 not found" }
+```

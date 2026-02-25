@@ -43,6 +43,7 @@ data/processed/
 # MLflow артефакты
 mlruns/
 mlartifacts/
+catboost_info/
 
 # Сохранённые модели
 *.pkl

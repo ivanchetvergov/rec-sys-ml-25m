@@ -6,43 +6,56 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  FRONTEND  (Next.js 14 · TypeScript · Tailwind)             │
 │                                                             │
-│  src/app/page.tsx              ← главная страница (SSR)     │
-│  src/components/MovieCard.tsx  ← карточка фильма            │
-│  src/lib/api.ts                ← HTTP клиент                │
+│  src/app/page.tsx                   ← главная страница (SSR)│
+│  src/app/movies/[id]/page.tsx       ← страница фильма       │
+│  src/app/movies/[id]/               │
+│    MoviePageInteractive.tsx         ← рейтинг/отзыв/похожие │
+│  src/components/MovieCard.tsx       ← карточка с постером   │
+│  src/lib/api.ts                     ← HTTP клиент           │
 └─────────────────────┬───────────────────────────────────────┘
-                      │ HTTP REST  (порт 8000)
+                      │ HTTP REST  (nginx → порт 8000)
 ┌─────────────────────▼───────────────────────────────────────┐
 │  BACKEND  (FastAPI · Python 3.11 · Pydantic v2)             │
 │                                                             │
 │  app/main.py                         ← точка входа, CORS    │
 │  app/routers/movies.py               ← /api/movies/...      │
-│  app/services/popularity_service.py  ← бизнес-логика        │
+│  app/services/                                              │
+│    popularity_service.py   ← популярные / каталог           │
+│    recommender_service.py  ← персональные (TwoStage)        │
+│    similarity_service.py   ← похожие фильмы (ALS cosine)    │
+│    tmdb_service.py         ← постеры / детали (TMDB API)    │
 │  app/schemas.py                      ← Pydantic ответы      │
 └─────────────────────┬───────────────────────────────────────┘
                       │ читает parquet напрямую (без БД)
 ┌─────────────────────▼───────────────────────────────────────┐
-│  FEATURE STORE  (Parquet файлы)                             │
+│  PROCESSED DATA  (Parquet файлы)                            │
 │                                                             │
-│  data/processed/feature_store/                              │
-│  └── ml_v_20260215_184134/                                  │
-│       ├── train.parquet   (17.4M строк · 56 колонок)        │
-│       ├── val.parquet     (3.7M строк)                      │
-│       ├── test.parquet    (3.7M строк)                      │
-│       └── metadata.json                                     │
+│  data/processed/                                            │
+│  ├── movies.parquet              (~17K строк · ~1 MB)       │
+│  ├── similarity_index.parquet    (~17K строк · ~3 MB)       │
+│  └── feature_store/                                         │
+│       └── ml_v_20260215_184134/                             │
+│            ├── train.parquet  (17.4M строк · 56 колонок)    │
+│            ├── val.parquet    (3.7M строк)                  │
+│            └── test.parquet   (3.7M строк)                  │
 └─────────────────────┬───────────────────────────────────────┘
                       │ производится из
 ┌─────────────────────▼───────────────────────────────────────┐
-│  ML PIPELINE  (Python · pandas · scikit-learn)              │
+│  ML PIPELINE  (Python · pandas · implicit · CatBoost)       │
 │                                                             │
-│  src/pipeline/preprocess_pipeline.py  ← оркестратор 5 шагов│
-│  src/data_loader.py                   ← загрузка CSV        │
-│  src/preprocessor.py                  ← фильтрация          │
-│  src/feature_engineer.py              ← 56 признаков        │
-│  src/data_splitter.py                 ← temporal split      │
-│  src/feature_store.py                 ← сохранение parquet  │
-│  src/models/popularity_based.py       ← PopularityRecommender│
-│  src/training/train_popularity.py     ← MLflow запуск       │
-│  src/evaluation/metrics.py            ← P@K, R@K, nDCG@K   │
+│  src/pipeline/preprocess_pipeline.py  ← ETL оркестратор    │
+│  src/pipeline/extract_movies.py       ← movies.parquet      │
+│  src/pipeline/build_similarity_index.py ← ALS cosine index │
+│  src/models/                                                │
+│    popularity_based.py     ← PopularityRecommender (baseline)│
+│    als_recommender.py      ← ALSRecommender (Stage 1)       │
+│    catboost_ranker.py      ← CatBoostRanker  (Stage 2)      │
+│    two_stage_recommender.py← production pipeline            │
+│  src/training/                                              │
+│    train_popularity.py     ← MLflow: popularity_baseline    │
+│    train_als.py            ← MLflow: als_candidate_generator│
+│    train_ranker.py         ← MLflow: two_stage_ranker       │
+│  src/evaluation/metrics.py ← P@K, R@K, nDCG@K, MAP@K       │
 └─────────────────────┬───────────────────────────────────────┘
                       │ исходные данные
 ┌─────────────────────▼───────────────────────────────────────┐
@@ -64,36 +77,76 @@
   ▼
 Next.js page.tsx
   │  fetchPopularMovies(limit=40)
-  │  GET http://localhost:8000/api/movies/popular?limit=40
+  │  GET http://backend:8000/api/movies/popular?limit=40
   ▼
 FastAPI  /api/movies/popular
   │  Depends(get_popularity_service)
   ▼
 PopularityService.get_popular(limit=40)
-  │  первый вызов: читает train.parquet (7 колонок)
+  │  первый вызов: читает movies.parquet (~17K строк, ~1 MB)
   │  результат кешируется в памяти через @lru_cache
-  │  повторные вызовы: срез DataFrame за < 1ms
   ▼
-list[dict] → Pydantic PopularMoviesResponse
-  │
-  ▼
-JSON ответ → MovieCard × 40 → HTML страница
+list[dict] → PopularMoviesResponse → JSON → MovieCard × 40
 ```
+
+## Поток данных — персональные рекомендации
+
+```
+браузер
+  │  GET /api/movies/personal?user_id=123&limit=20
+  ▼
+FastAPI  /api/movies/personal
+  │  Depends(get_recommender_service)
+  ▼
+RecommenderService.get_personal_recs(user_id=123, n=20)
+  │
+  ├─ [Stage 1] ALSRecommender → top-300 кандидатов   ~1-2 ms
+  ├─ [Stage 2] CatBoostRanker → переранжировать       ~5-10 ms
+  └─ [Fallback] PopularityService  (cold-start / ошибка)
+  ▼
+PersonalRecsResponse (model="two_stage" | "popularity_fallback")
+```
+
+## Поток данных — похожие фильмы
+
+```
+браузер (MoviePageInteractive.tsx)
+  │  fetchSimilarMovies(movie.id)
+  │  GET /api/movies/{id}/similar?limit=24
+  ▼
+FastAPI  /api/movies/{id}/similar
+  │  Depends(get_similarity_service)
+  ▼
+SimilarityService.get_similar_ids(movie_id, n=24)
+  │  O(1) lookup в предзагруженном dict
+  │  similarity_index.parquet — собирается make build-similarity
+  ▼
+PopularityService.get_movie(mid) × 24  (обогащение метаданными)
+  ▼
+SimilarMoviesResponse (model="als_cosine") → 24 карточки
 
 ## Дизайн-решения
 
 ### Нет базы данных на текущем этапе
 
-Feature store уже содержит агрегированные метрики по фильмам (`movie_avg_rating`, `movie_num_ratings`, `movie_popularity`). Читать их из parquet быстро (~400ms при старте) и дёшево. БД добавится когда появятся пользователи и взаимодействия.
+Feature store содержит агрегированные метрики (`movie_avg_rating`, `movie_popularity`). Читается из parquet при старте (~400 ms, кешируется). БД добавится когда появятся пользователи и взаимодействия в реальном времени.
+
+### Лёгкий каталог `movies.parquet`
+
+Вместо чтения полного `train.parquet` (17.4M строк, 56 колонок, ~500 MB) при каждом старте бэкенд загружает `movies.parquet` (~17K строк, ~1 MB) — выжимку уникальных фильмов. Генерируется командой `make extract-movies`.
+
+### Pre-computed similarity index
+
+Item-item косинусное сходство по ALS-векторам вычисляется **оффлайн** (`make build-similarity`) один раз после обучения модели. Бэкенд читает 3 MB parquet при старте и отвечает за O(1) — нет зависимостей от `implicit` или CatBoost в рантайме.
 
 ### In-memory кеш через `@lru_cache`
 
-`PopularityService` создаётся один раз при первом запросе и живёт весь цикл приложения. Повторные запросы к `/popular` отдаются из памяти.
+Все четыре сервиса (`PopularityService`, `RecommenderService`, `SimilarityService`, `TMDBService`) создаются один раз при первом запросе и живут весь цикл приложения.
 
 ### Next.js ISR (Incremental Static Regeneration)
 
-`fetch` с `next: { revalidate: 3600 }` — страница кешируется на 1 час, rebuild происходит в фоне.
+`fetchPopularMovies()` использует `next: { revalidate: 3600 }` — страница кешируется на 1 час. Персональные рекомендации и похожие фильмы используют `cache: 'no-store'`.
 
 ### Временной сплит обучающей выборки
 
-Данные разделены **по времени** (70% / 15% / 15%), а не случайно — предотвращает утечку данных из будущего в прошлое.
+Данные разделены **по времени** (70% / 15% / 15%) — модель обучается на прошлом и предсказывает будущее.
