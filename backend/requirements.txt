@@ -12,10 +12,4 @@ scipy==1.13.0
 implicit==0.7.2
 catboost==1.2.3
 # Database
-sqlalchemy==2.0.30
-alembic==1.13.1
-asyncpg==0.29.0
 psycopg2-binary==2.9.9
-# Auth
-passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
