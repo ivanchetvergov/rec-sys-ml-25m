@@ -63,28 +63,29 @@ export default async function MoviePage({ params }: PageProps) {
 
             {/* ── Content ──────────────────────────────────────────────────── */}
             <div className="mx-auto px-8 pb-20 mt-[-40px] relative z-10" style={{ maxWidth: 1200 }}>
-                <div className="flex flex-col md:flex-row gap-10">
+                {/* Poster + info — poster stretches exactly to the bottom of this block */}
+                <div className="flex flex-col md:flex-row gap-10 items-stretch">
                     {/* Poster column */}
-                    <div className="flex-shrink-0 md:w-64">
+                    <div className="flex-shrink-0 md:w-64 hidden md:block">
                         <div
-                            className="rounded-2xl overflow-hidden shadow-2xl"
+                            className="rounded-2xl overflow-hidden shadow-2xl h-full"
                             style={{
-                                aspectRatio: "2/3",
                                 background: gradient,
                                 border: "1px solid rgba(255,255,255,0.10)",
+                                minHeight: 320,
                             }}
                         >
                             {posterUrl && (
                                 <img
                                     src={posterUrl}
                                     alt={movie.title}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover object-top"
                                 />
                             )}
                         </div>
                     </div>
 
-                    {/* Info column */}
+                    {/* Info column: title → meta → genres → overview → ratings */}
                     <div className="flex-1 pt-2 flex flex-col gap-5">
                         {/* Title */}
                         <div>
@@ -127,7 +128,7 @@ export default async function MoviePage({ params }: PageProps) {
 
                         {/* Ratings */}
                         <div
-                            className="flex flex-wrap gap-8 px-6 py-4 rounded-xl"
+                            className="flex flex-wrap gap-8 px-6 py-4 rounded-xl mt-auto"
                             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
                         >
                             {movie.avg_rating != null && (
@@ -152,11 +153,10 @@ export default async function MoviePage({ params }: PageProps) {
                                 </div>
                             )}
                         </div>
-
                     </div>
                 </div>
 
-                {/* ── Interactive section (rating, review, similar) ─────── */}
+                {/* ── Interactive section — full width below poster+info ── */}
                 <div className="mt-10">
                     <MoviePageInteractive movie={movie} />
                 </div>
