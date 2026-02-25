@@ -14,3 +14,4 @@
     popularity_score: Optional[float]
     tmdb_id: Optional[int] = None
     imdb_id: Optional[str] = None удачи
+32) давай создадим миграцию для создания таблицы reviews, таблица для оценок фильмов примерно такие атрибуты id, movie_id, user_id, оценка фильма, отзыв, можешь накидать еще атрибутов
