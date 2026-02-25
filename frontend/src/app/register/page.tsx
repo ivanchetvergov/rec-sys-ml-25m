@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { registerUser } from '@/lib/api'
+import { setAuth } from '@/lib/authStore'
 
 export default function RegisterPage() {
 	const router = useRouter()
@@ -26,10 +28,16 @@ export default function RegisterPage() {
 		}
 
 		setLoading(true)
-		// TODO: replace with real API call when backend auth is ready
-		await new Promise(r => setTimeout(r, 500))
-		setLoading(false)
-		router.push('/')
+		try {
+			const data = await registerUser(username, email, password)
+			setAuth(data.access_token, data.user)
+			router.push('/')
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : 'Registration failed'
+			setError({ message: msg })
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	const inputClass = (field: string) =>

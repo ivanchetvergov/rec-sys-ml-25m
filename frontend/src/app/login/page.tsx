@@ -3,10 +3,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { loginUser } from '@/lib/api'
+import { setAuth } from '@/lib/authStore'
 
 export default function LoginPage() {
 	const router = useRouter()
-	const [email, setEmail] = useState('')
+	const [login, setLogin] = useState('')
 	const [password, setPassword] = useState('')
 	const [error, setError] = useState<{
 		field?: string
@@ -18,10 +20,16 @@ export default function LoginPage() {
 		e.preventDefault()
 		setError(null)
 		setLoading(true)
-		// TODO: replace with real API call when backend auth is ready
-		await new Promise(r => setTimeout(r, 500))
-		setLoading(false)
-		router.push('/')
+		try {
+			const data = await loginUser(login, password)
+			setAuth(data.access_token, data.user)
+			router.push('/')
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : 'Login failed'
+			setError({ message: msg })
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	return (
@@ -70,25 +78,25 @@ export default function LoginPage() {
 				</p>
 
 				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					{/* Email */}
+					{/* Login */}
 					<div className='flex flex-col gap-1'>
 						<label className='text-xs text-zinc-400 font-medium uppercase tracking-wider'>
-							Email
+							Username
 						</label>
 						<input
-							type='email'
-							autoComplete='email'
-							value={email}
-							onChange={e => setEmail(e.target.value)}
-							placeholder='you@example.com'
+							type='text'
+							autoComplete='username'
+							value={login}
+							onChange={e => setLogin(e.target.value)}
+							placeholder='your_username'
 							required
 							className={`rounded-lg px-4 py-3 text-sm text-white outline-none transition-all ${
-								error?.field === 'email'
+								error?.field === 'login'
 									? 'border border-red-500 bg-red-950/30'
 									: 'border border-zinc-700 bg-zinc-800/60 focus:border-zinc-400'
 							}`}
 						/>
-						{error?.field === 'email' && (
+						{error?.field === 'login' && (
 							<span className='text-xs text-red-400'>{error.message}</span>
 						)}
 					</div>

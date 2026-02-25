@@ -1,18 +1,18 @@
 'use client'
 
-import { fetchAllMovies } from '@/lib/api'
-import type { Movie } from '@/lib/api'
 import {
-	getAllReviews,
+	fetchWatchlist,
+	fetchReviews,
+	removeFromWatchlist as apiRemoveWatchlist,
+} from '@/lib/api'
+import type { WatchlistItem, Review, Movie } from '@/lib/api'
+import {
 	getGenreStats,
-	getWatchlist,
 	getWatched,
-	removeFromWatchlist,
 	removeWatched,
-	type UserReview,
 	type WatchedEntry,
-	type WatchlistEntry,
 } from '@/lib/userStore'
+import { getToken, getAuthUser } from '@/lib/authStore'
 import { useEffect, useRef, useState } from 'react'
 
 // ── Mini poster card used inside the profile lists ───────────────────────────
@@ -217,40 +217,70 @@ function Section({
 	)
 }
 
+// ── Watched card — self-fetches movie details ────────────────────────────────
+function WatchedCard({ movieId, onRemove }: { movieId: number; onRemove: () => void }) {
+	const [movie, setMovie] = useState<Movie | null>(null)
+
+	useEffect(() => {
+		let cancelled = false
+		import('@/lib/api').then(({ fetchMovie }) =>
+			fetchMovie(movieId).then(m => { if (!cancelled) setMovie(m) })
+		)
+		return () => { cancelled = true }
+	}, [movieId])
+
+	const stub: Movie = movie ?? {
+		id: movieId,
+		title: `Movie #${movieId}`,
+		genres: null,
+		year: null,
+		avg_rating: null,
+		num_ratings: null,
+		popularity_score: null,
+		tmdb_id: null,
+		imdb_id: null,
+	}
+
+	return (
+		<MiniCard
+			movie={stub}
+			badge={
+				<span className='text-xs font-bold px-1.5 py-0.5 rounded-md' style={{ background: 'rgba(46,160,67,0.85)', color: '#fff' }}>
+					✓
+				</span>
+			}
+			onRemove={onRemove}
+		/>
+	)
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
-	const [movies, setMovies]       = useState<Record<number, Movie>>({})
 	const [watched, setWatched]     = useState<WatchedEntry[]>([])
-	const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([])
-	const [reviews, setReviews]     = useState<UserReview[]>([])
+	const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
+	const [reviews, setReviews]     = useState<Review[]>([])
 	const [ready, setReady]         = useState(false)
+	const [authUser, setAuthUser]   = useState(getAuthUser())
 
-	// Load everything from localStorage + fetch movie metadata
 	useEffect(() => {
-		const w  = getWatched()
-		const wl = getWatchlist()
-		const rv = getAllReviews()
+		const token = getToken()
+		setAuthUser(getAuthUser())
 
-		setWatched(w)
-		setWatchlist(wl)
-		setReviews(rv)
+		// Watched lives in localStorage (no DB table)
+		setWatched(getWatched())
 
-		// Collect all unique IDs we need
-		const ids = new Set([
-			...w.map(e => e.movieId),
-			...wl.map(e => e.movieId),
-			...rv.map(e => e.movieId),
-		])
-
-		if (ids.size === 0) { setReady(true); return }
-
-		// Fetch catalog once and build lookup map
-		fetchAllMovies().then(all => {
-			const map: Record<number, Movie> = {}
-			all.forEach(m => { if (ids.has(m.id)) map[m.id] = m })
-			setMovies(map)
+		if (!token) {
 			setReady(true)
-		})
+			return
+		}
+
+		Promise.all([fetchWatchlist(token), fetchReviews(token)]).then(
+			([wl, rv]) => {
+				setWatchlist(wl)
+				setReviews(rv)
+				setReady(true)
+			},
+		)
 	}, [])
 
 	function handleRemoveWatched(id: number) {
@@ -258,21 +288,24 @@ export default function ProfilePage() {
 		setWatched(prev => prev.filter(e => e.movieId !== id))
 	}
 
-	function handleRemoveWatchlist(id: number) {
-		removeFromWatchlist(id)
-		setWatchlist(prev => prev.filter(e => e.movieId !== id))
+	async function handleRemoveWatchlist(movieId: number) {
+		const token = getToken()
+		if (!token) return
+		await apiRemoveWatchlist(token, movieId)
+		setWatchlist(prev => prev.filter(w => w.movie_id !== movieId))
 	}
 
-	// Stats
+	// Genre stats — derive from watchlist + reviews titles/genres
+	// We only have genres from watchlist items in DB; watched is localStorage
 	const genreMap: Record<number, string | null> = {}
-	Object.values(movies).forEach(m => { genreMap[m.id] = m.genres })
+	watchlist.forEach(w => { genreMap[w.movie_id] = w.genres ?? null })
 	const genreStats = getGenreStats(genreMap)
 
-	const totalRated   = reviews.filter(r => r.rating > 0).length
-	const avgRating    = totalRated
-		? (reviews.filter(r => r.rating > 0).reduce((s, r) => s + r.rating, 0) / totalRated).toFixed(1)
+	const totalRated  = reviews.filter(r => r.rating > 0).length
+	const avgRating   = totalRated
+		? (reviews.reduce((s, r) => s + r.rating, 0) / totalRated).toFixed(1)
 		: '—'
-	const totalReviews = reviews.filter(r => r.review.trim()).length
+	const totalReviews = reviews.filter(r => r.review_text?.trim()).length
 
 	if (!ready) return (
 		<div className='min-h-screen flex items-center justify-center' style={{ background: 'var(--bg-primary)' }}>
@@ -289,6 +322,22 @@ export default function ProfilePage() {
 			/>
 
 			<div className='relative max-w-5xl mx-auto flex flex-col gap-6'>
+
+				{/* ── User greeting ──────────────────────────────────────── */}
+				{authUser && (
+					<div className='flex items-center gap-4 mb-2'>
+						<div
+							className='w-14 h-14 rounded-full flex items-center justify-center text-xl font-black text-white flex-shrink-0'
+							style={{ background: 'var(--netflix-red)' }}
+						>
+							{authUser.login.charAt(0).toUpperCase()}
+						</div>
+						<div>
+							<h1 className='text-2xl font-black text-white'>{authUser.login}</h1>
+							<p className='text-sm text-zinc-500'>{authUser.email}</p>
+						</div>
+					</div>
+				)}
 
 				{/* ── Stats bar ──────────────────────────────────────────── */}
 				<div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
@@ -345,22 +394,13 @@ export default function ProfilePage() {
 							</>
 						}
 					>
-						{watched.map(({ movieId }) => {
-							const m = movies[movieId]
-							if (!m) return null
-							return (
-								<MiniCard
-									key={movieId}
-									movie={m}
-									badge={
-										<span className='text-xs font-bold px-1.5 py-0.5 rounded-md' style={{ background: 'rgba(46,160,67,0.85)', color: '#fff' }}>
-											✓
-										</span>
-									}
-									onRemove={() => handleRemoveWatched(movieId)}
-								/>
-							)
-						})}
+						{watched.map(({ movieId }) => (
+							<WatchedCard
+								key={movieId}
+								movieId={movieId}
+								onRemove={() => handleRemoveWatched(movieId)}
+							/>
+						))}
 					</MovieRow>
 				</Section>
 
@@ -379,17 +419,23 @@ export default function ProfilePage() {
 							</>
 						}
 					>
-						{watchlist.map(({ movieId }) => {
-							const m = movies[movieId]
-							if (!m) return null
-							return (
-								<MiniCard
-									key={movieId}
-									movie={m}
-									onRemove={() => handleRemoveWatchlist(movieId)}
-								/>
-							)
-						})}
+						{watchlist.map(w => (
+							<MiniCard
+								key={w.movie_id}
+								movie={{
+									id: w.movie_id,
+									title: w.title,
+									genres: w.genres,
+									year: w.year,
+									avg_rating: w.avg_rating,
+									num_ratings: w.num_ratings,
+									popularity_score: w.popularity_score,
+									tmdb_id: w.tmdb_id,
+									imdb_id: w.imdb_id,
+								}}
+								onRemove={() => handleRemoveWatchlist(w.movie_id)}
+							/>
+						))}
 					</MovieRow>
 				</Section>
 
@@ -445,30 +491,26 @@ export default function ProfilePage() {
 							{/* Review cards */}
 							<div className='flex flex-col gap-3'>
 								{reviews.map(rv => {
-									const m = movies[rv.movieId]
-									const gradient = CARD_GRADIENTS[rv.movieId % CARD_GRADIENTS.length]
+									const gradient = CARD_GRADIENTS[rv.movie_id % CARD_GRADIENTS.length]
 									return (
 										<div
-											key={rv.movieId}
+											key={rv.movie_id}
 											className='flex gap-4 rounded-xl p-4'
 											style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
 										>
-											{/* Mini poster */}
-											<ReviewPoster movieId={rv.movieId} gradient={gradient} />
+											<ReviewPoster movieId={rv.movie_id} gradient={gradient} />
 											<div className='flex flex-col gap-1.5 flex-1 min-w-0'>
 												<div className='flex items-start justify-between gap-2'>
 													<p className='text-sm font-semibold text-white truncate'>
-														{m?.title ?? `Movie #${rv.movieId}`}
+														{rv.title ?? `Movie #${rv.movie_id}`}
 													</p>
-													{rv.savedAt && (
-														<span className='text-xs text-zinc-600 flex-shrink-0'>
-															{new Date(rv.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-														</span>
-													)}
+													<span className='text-xs text-zinc-600 flex-shrink-0'>
+														{new Date(rv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+													</span>
 												</div>
 												{rv.rating > 0 && <Stars value={rv.rating} />}
-												{rv.review.trim() && (
-													<p className='text-sm text-zinc-400 leading-relaxed line-clamp-3'>{rv.review}</p>
+												{rv.review_text?.trim() && (
+													<p className='text-sm text-zinc-400 leading-relaxed line-clamp-3'>{rv.review_text}</p>
 												)}
 											</div>
 										</div>
@@ -486,11 +528,9 @@ export default function ProfilePage() {
 						icon={<svg className='w-5 h-5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={1.8}><path strokeLinecap='round' strokeLinejoin='round' d='M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z' /></svg>}
 					>
 						<div className='flex flex-col md:flex-row gap-8 items-start'>
-							{/* Bar chart */}
 							<div className='flex-1 w-full'>
 								<GenreChart stats={genreStats} />
 							</div>
-							{/* Donut-style legend */}
 							<div className='flex flex-col gap-2 flex-shrink-0'>
 								{genreStats.slice(0, 5).map(({ genre, count }, i) => {
 									const COLORS = ['#e50914', '#e87c1e', '#f0c040', '#46d369', '#0080ff']

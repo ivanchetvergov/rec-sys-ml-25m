@@ -1,10 +1,15 @@
 """Password hashing and JWT token utilities."""
 
 import os
+import warnings
 from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import JWTError, jwt
+
+# passlib 1.7.4 emits a warning when it detects bcrypt >= 4.0; suppress it
+warnings.filterwarnings("ignore", ".*error reading bcrypt version.*")
+
 from passlib.context import CryptContext
 
 # ── Config ────────────────────────────────────────────────────────────────────

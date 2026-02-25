@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.movies import router as movies_router
 from app.routers.auth import router as auth_router
+from app.routers.watchlist import router as watchlist_router
+from app.routers.reviews import router as reviews_router
 from app.services.popularity_service import get_popularity_service
 from app.services.recommender_service import get_recommender_service
 from app.services.similarity_service import get_similarity_service
@@ -30,6 +32,8 @@ app.add_middleware(
 
 app.include_router(movies_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(watchlist_router, prefix="/api")
+app.include_router(reviews_router, prefix="/api")
 
 
 @app.on_event("startup")

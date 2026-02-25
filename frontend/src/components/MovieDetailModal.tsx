@@ -1,15 +1,13 @@
 'use client'
 
 import type { Movie, MovieDetails } from '@/lib/api'
-import { fetchMovieDetails } from '@/lib/api'
+import { fetchMovieDetails, addToWatchlist as apiAddWatchlist, removeFromWatchlist as apiRemoveWatchlist, upsertReview } from '@/lib/api'
 import {
-	addToWatchlist,
 	addWatched,
-	isInWatchlist,
 	isWatched,
-	removeFromWatchlist,
 	removeWatched,
 } from '@/lib/userStore'
+import { getToken } from '@/lib/authStore'
 import { useCallback, useEffect, useState } from 'react'
 
 interface Props {
@@ -67,12 +65,9 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	const [watched, setWatched] = useState(false)
 	const [inWatchlist, setInWatchlist] = useState(false)
 
-	const storageKey = `movie_review_${movie.id}`
-
-	// Init watched / watchlist from localStorage
+	// Init watched from localStorage; watchlist state will sync from DB
 	useEffect(() => {
 		setWatched(isWatched(movie.id))
-		setInWatchlist(isInWatchlist(movie.id))
 	}, [movie.id])
 
 	// Load TMDB details
@@ -83,19 +78,23 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 			.finally(() => setLoading(false))
 	}, [movie.id])
 
-	// Load saved review from localStorage
+	// Load saved review + watchlist state from DB (if logged in)
 	useEffect(() => {
-		try {
-			const stored = localStorage.getItem(storageKey)
-			if (stored) {
-				const parsed = JSON.parse(stored)
-				setUserRating(parsed.rating ?? 0)
-				setReview(parsed.review ?? '')
-			}
-		} catch {
-			// noop
-		}
-	}, [storageKey])
+		const token = getToken()
+		if (!token) return
+		import('@/lib/api').then(({ fetchReviews, fetchWatchlist }) => {
+			fetchReviews(token).then(all => {
+				const mine = all.find(r => r.movie_id === movie.id)
+				if (mine) {
+					setUserRating(mine.rating)
+					setReview(mine.review_text ?? '')
+				}
+			})
+			fetchWatchlist(token).then(wl => {
+				setInWatchlist(wl.some(w => w.movie_id === movie.id))
+			})
+		})
+	}, [movie.id])
 
 	// Close on Escape
 	const handleKeyDown = useCallback(
@@ -109,21 +108,12 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 		return () => document.removeEventListener('keydown', handleKeyDown)
 	}, [handleKeyDown])
 
-	const handleSave = () => {
-		try {
-			localStorage.setItem(
-				storageKey,
-				JSON.stringify({
-					rating: userRating,
-					review,
-					savedAt: new Date().toISOString(),
-				}),
-			)
-			setSaved(true)
-			setTimeout(() => setSaved(false), 2000)
-		} catch {
-			// noop
-		}
+	const handleSave = async () => {
+		const token = getToken()
+		if (!token) return
+		await upsertReview(token, movie.id, movie.title, userRating, review)
+		setSaved(true)
+		setTimeout(() => setSaved(false), 2000)
 	}
 
 	const genres = movie.genres?.split('|') ?? []
@@ -314,12 +304,14 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 								</button>
 								{/* Watchlist */}
 								<button
-									onClick={() => {
+									onClick={async () => {
+										const token = getToken()
+										if (!token) return
 										if (inWatchlist) {
-											removeFromWatchlist(movie.id)
+											await apiRemoveWatchlist(token, movie.id)
 											setInWatchlist(false)
 										} else {
-											addToWatchlist(movie.id)
+											await apiAddWatchlist(token, movie)
 											setInWatchlist(true)
 										}
 									}}
