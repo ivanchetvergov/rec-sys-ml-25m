@@ -3,7 +3,10 @@ services:
     build: ./backend
     expose:
       - '8000'
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
+      # live-reload: backend source code
+      - ./backend/app:/app/app
       # pre-extracted movie catalogue (~17K rows, ~1 MB) — run `make extract-movies` to regenerate
       - ./data/processed/movies.parquet:/app/data/processed/movies.parquet:ro
       # trained two-stage model artifacts
@@ -24,6 +27,12 @@ services:
       dockerfile: Dockerfile.dev
     expose:
       - '3000'
+    volumes:
+      # live-reload: Next.js dev server watches these
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      # keep container's node_modules — don't let host mount overwrite them
+      - /app/node_modules
     environment:
       # Браузер обращается к nginx на 80; SSR внутри контейнера — напрямую к backend:8000
       - NEXT_PUBLIC_API_URL=http://localhost

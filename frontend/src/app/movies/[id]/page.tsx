@@ -153,31 +153,6 @@ export default async function MoviePage({ params }: PageProps) {
                             )}
                         </div>
 
-                        {/* External links */}
-                        <div className="flex gap-4 pt-2">
-                            {movie.imdb_id && (
-                                <a
-                                    href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, "0")}/`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-                                    style={{ background: "#f5c518", color: "#000" }}
-                                >
-                                    View on IMDB
-                                </a>
-                            )}
-                            {movie.tmdb_id && (
-                                <a
-                                    href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-80"
-                                    style={{ background: "#01b4e4" }}
-                                >
-                                    View on TMDB
-                                </a>
-                            )}
-                        </div>
                     </div>
                 </div>
 

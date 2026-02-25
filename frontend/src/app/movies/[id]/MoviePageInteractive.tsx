@@ -205,48 +205,76 @@ export default function MoviePageInteractive({ movie }: Props) {
 
     return (
         <div className='flex flex-col gap-8'>
-            {/* ── Your rating + Watched + Watchlist ────────────────────────── */}
+            {/* ── Your rating + Watched + Watchlist + External links ─────── */}
             <div className={sectionBox} style={sectionStyle}>
                 <h2 className='text-xs uppercase tracking-widest text-zinc-500 mb-4'>Your rating</h2>
-                <div className='flex flex-wrap items-center gap-4'>
-                    <StarRating value={userRating} onChange={setUserRating} size='lg' />
+                <div className='flex flex-wrap items-center justify-between gap-4'>
+                    <div className='flex flex-wrap items-center gap-4'>
+                        <StarRating value={userRating} onChange={setUserRating} size='lg' />
 
-                    {/* Watched */}
-                    <button
-                        onClick={() => {
-                            if (watched) { removeWatched(movie.id); setWatched(false) }
-                            else { addWatched(movie.id); setWatched(true) }
-                        }}
-                        className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all'
-                        style={{
-                            background: watched ? 'rgba(46,160,67,0.18)' : 'rgba(255,255,255,0.06)',
-                            border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                            color: watched ? '#4ade80' : '#a1a1aa',
-                        }}
-                    >
-                        {watched
-                            ? <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
-                            : <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
-                        }
-                        {watched ? 'Watched' : 'Mark watched'}
-                    </button>
+                        {/* Watched */}
+                        <button
+                            onClick={() => {
+                                if (watched) { removeWatched(movie.id); setWatched(false) }
+                                else { addWatched(movie.id); setWatched(true) }
+                            }}
+                            className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all'
+                            style={{
+                                background: watched ? 'rgba(46,160,67,0.18)' : 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                                color: watched ? '#4ade80' : '#a1a1aa',
+                            }}
+                        >
+                            {watched
+                                ? <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
+                                : <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
+                            }
+                            {watched ? 'Watched' : 'Mark watched'}
+                        </button>
 
-                    {/* Watchlist */}
-                    <button
-                        onClick={() => {
-                            if (inWatchlist) { removeFromWatchlist(movie.id); setInWatchlist(false) }
-                            else { addToWatchlist(movie.id); setInWatchlist(true) }
-                        }}
-                        className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all'
-                        style={{
-                            background: inWatchlist ? 'rgba(229,9,20,0.13)' : 'rgba(255,255,255,0.06)',
-                            border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                            color: inWatchlist ? '#e50914' : '#a1a1aa',
-                        }}
-                    >
-                        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
-                        {inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
-                    </button>
+                        {/* Watchlist */}
+                        <button
+                            onClick={() => {
+                                if (inWatchlist) { removeFromWatchlist(movie.id); setInWatchlist(false) }
+                                else { addToWatchlist(movie.id); setInWatchlist(true) }
+                            }}
+                            className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all'
+                            style={{
+                                background: inWatchlist ? 'rgba(229,9,20,0.13)' : 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                                color: inWatchlist ? '#e50914' : '#a1a1aa',
+                            }}
+                        >
+                            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-4 h-4'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
+                            {inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                        </button>
+                    </div>
+
+                    {/* Right: IMDB + TMDB links */}
+                    <div className='flex items-center gap-2 ml-auto'>
+                        {movie.imdb_id && (
+                            <a
+                                href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                className='flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-80'
+                                style={{ background: '#f5c518', color: '#000' }}
+                            >
+                                IMDB
+                            </a>
+                        )}
+                        {movie.tmdb_id && (
+                            <a
+                                href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                className='flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition-opacity hover:opacity-80'
+                                style={{ background: '#01b4e4' }}
+                            >
+                                TMDB
+                            </a>
+                        )}
+                    </div>
                 </div>
             </div>
 
