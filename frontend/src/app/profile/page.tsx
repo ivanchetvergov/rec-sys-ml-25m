@@ -363,13 +363,13 @@ export default function ProfilePage() {
 		setWatchlist(prev => prev.filter(w => w.movie_id !== movieId))
 	}
 
-	// Genre stats — derive from watchlist + watched genres
+	// Genre stats — derive from watched + watchlist genres
 	const genreMap: Record<number, string | null> = {}
-	watchlist.forEach(w => {
-		genreMap[w.movie_id] = w.genres ?? null
-	})
 	watched.forEach(w => {
 		genreMap[w.movie_id] = w.genres ?? null
+	})
+	watchlist.forEach(w => {
+		if (!genreMap[w.movie_id]) genreMap[w.movie_id] = w.genres ?? null
 	})
 	const genreStats = getGenreStats(genreMap)
 
