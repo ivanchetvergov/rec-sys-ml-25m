@@ -6,9 +6,8 @@ import { MovieDetailModal } from "@/components/MovieDetailModal";
 import { MovieRow } from "@/components/MovieRow";
 import type { Movie, PersonalRec } from "@/lib/api";
 import { fetchPersonalRecs } from "@/lib/api";
+import { getAuthUser, isLoggedIn } from "@/lib/authStore";
 import { useEffect, useRef, useState } from "react";
-
-const DEMO_USERS = [1, 42, 123];
 
 /** Map a PersonalRec to the Movie shape expected by MovieRow / MovieCard. */
 function toMovie(r: PersonalRec): Movie {
@@ -31,8 +30,15 @@ interface Props {
 
 export function MoviePageClient({ movies }: Props) {
     const [selected, setSelected] = useState<Movie | null>(null);
-    const [userId, setUserId] = useState<number>(DEMO_USERS[0]);
+
+    // "me" = logged-in user id (null if not authenticated)
+    const [meId, setMeId] = useState<number | null>(null);
+    // true = using "me" mode; false = using custom id
+    const [useMe, setUseMe] = useState(true);
+
     const [customInput, setCustomInput] = useState("");
+    const [customId, setCustomId] = useState<number | null>(null);
+
     const [personalMovies, setPersonalMovies] = useState<Movie[]>([]);
     const [personalModel, setPersonalModel] = useState<string>("");
     const [personalLoading, setPersonalLoading] = useState(true);
@@ -41,8 +47,28 @@ export function MoviePageClient({ movies }: Props) {
     const hero = movies[0];
     const trending = movies.slice(1, 21);
 
-    // Fetch personal recs whenever userId changes
+    // Sync meId on mount and on auth-change
     useEffect(() => {
+        function sync() {
+            const authUser = isLoggedIn() ? getAuthUser() : null;
+            setMeId(authUser ? authUser.id : null);
+        }
+        sync();
+        window.addEventListener("auth-change", sync);
+        return () => window.removeEventListener("auth-change", sync);
+    }, []);
+
+    // Active user id for recommendations
+    const userId = useMe ? meId : customId;
+
+    // Fetch personal recs whenever effective userId changes
+    useEffect(() => {
+        if (userId === null) {
+            setPersonalMovies([]);
+            setPersonalModel("");
+            setPersonalLoading(false);
+            return;
+        }
         setPersonalLoading(true);
         fetchPersonalRecs(userId, 24)
             .then((data) => {
@@ -57,15 +83,13 @@ export function MoviePageClient({ movies }: Props) {
             .finally(() => setPersonalLoading(false));
     }, [userId]);
 
-    const isCustomActive = !DEMO_USERS.includes(userId);
-
     const applyCustom = () => {
         const v = parseInt(customInput, 10);
-        if (!isNaN(v) && v > 0) setUserId(v);
+        if (!isNaN(v) && v > 0) {
+            setCustomId(v);
+            setUseMe(false);
+        }
     };
-
-    const personalBadge =
-        personalModel === "two_stage" ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined;
 
     return (
         <div style={{ background: "var(--bg-primary)" }}>
@@ -89,30 +113,30 @@ export function MoviePageClient({ movies }: Props) {
                 <section id="personal" className="pb-4">
                     {/* User switcher */}
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
-                        <span className="text-sm text-zinc-400">Demo user:</span>
 
-                        {/* Preset buttons */}
-                        {DEMO_USERS.map((uid) => (
-                            <button
-                                key={uid}
-                                onClick={() => { setUserId(uid); setCustomInput(""); }}
-                                className="text-xs px-3 py-1 rounded-full border transition-colors"
-                                style={{
-                                    borderColor: uid === userId ? "var(--netflix-red)" : "rgba(255,255,255,0.15)",
-                                    color: uid === userId ? "var(--netflix-red)" : "#a1a1aa",
-                                    background: uid === userId ? "rgba(229,9,20,0.10)" : "transparent",
-                                }}
-                            >
-                                #{uid}
-                            </button>
-                        ))}
+                        {/* Me button */}
+                        <button
+                            onClick={() => setUseMe(true)}
+                            disabled={meId === null}
+                            className="text-xs px-4 py-1.5 rounded-full border font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{
+                                borderColor: useMe ? "var(--netflix-red)" : "rgba(255,255,255,0.15)",
+                                color: useMe ? "var(--netflix-red)" : "#a1a1aa",
+                                background: useMe ? "rgba(229,9,20,0.10)" : "transparent",
+                            }}
+                            title={meId === null ? "Sign in to use your own recommendations" : `User #${meId}`}
+                        >
+                            Me{meId !== null && useMe && (
+                                <span className="ml-1 opacity-50 font-normal">#{meId}</span>
+                            )}
+                        </button>
 
-                        {/* Custom user input */}
+                        {/* Custom ID input */}
                         <div
                             className="flex items-center rounded-full border overflow-hidden transition-colors"
                             style={{
-                                borderColor: isCustomActive ? "var(--netflix-red)" : "rgba(255,255,255,0.15)",
-                                background: isCustomActive ? "rgba(229,9,20,0.10)" : "rgba(255,255,255,0.04)",
+                                borderColor: !useMe && customId !== null ? "var(--netflix-red)" : "rgba(255,255,255,0.15)",
+                                background: !useMe && customId !== null ? "rgba(229,9,20,0.10)" : "rgba(255,255,255,0.04)",
                             }}
                         >
                             <span className="text-xs pl-3 text-zinc-500">#</span>
@@ -125,8 +149,8 @@ export function MoviePageClient({ movies }: Props) {
                                 onChange={(e) => setCustomInput(e.target.value.replace(/\D/g, ""))}
                                 onKeyDown={(e) => e.key === "Enter" && applyCustom()}
                                 placeholder="user id"
-                                className="text-xs bg-transparent outline-none px-1.5 py-1 w-12"
-                                style={{ color: isCustomActive ? "var(--netflix-red)" : "#a1a1aa" }}
+                                className="text-xs bg-transparent outline-none px-1.5 py-1 w-16"
+                                style={{ color: !useMe && customId !== null ? "var(--netflix-red)" : "#a1a1aa" }}
                             />
                             <button
                                 onClick={applyCustom}
@@ -147,14 +171,18 @@ export function MoviePageClient({ movies }: Props) {
                         )}
                     </div>
 
-                    {personalLoading ? (
+                    {userId === null ? (
+                        <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">
+                            Sign in or enter a user ID to see recommendations
+                        </div>
+                    ) : personalLoading ? (
                         <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">
                             Loading recommendations…
                         </div>
                     ) : (
                         <MovieRow
                             title="Recommended for You"
-                            badge={personalBadge}
+                            badge={personalModel === "two_stage" ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
                             movies={personalMovies}
                             onSelect={setSelected}
                         />
