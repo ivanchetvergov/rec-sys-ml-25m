@@ -4,10 +4,8 @@ services:
     expose:
       - '8000'
     volumes:
-      # feature store — backend reads parquet directly
-      - ./data/processed/feature_store:/app/data/processed/feature_store:ro
-      # links.csv for tmdb_id / imdb_id
-      - ./data/raw/ml-25m/links.csv:/app/data/raw/ml-25m/links.csv:ro
+      # pre-extracted movie catalogue (~17K rows, ~1 MB) — run `make extract-movies` to regenerate
+      - ./data/processed/movies.parquet:/app/data/processed/movies.parquet:ro
       # trained two-stage model artifacts
       - ./data/models:/app/data/models:ro
       # src package — needed for TwoStageRecommender imports

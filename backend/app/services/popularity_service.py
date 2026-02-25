@@ -19,21 +19,9 @@ logger = logging.getLogger(__name__)
 # Locally falls back to 3 levels up: backend/app/services/ -> project root
 _PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 
-# Columns we actually need — avoids loading 56-column parquet into memory
-_MOVIE_COLS = [
-    "movieId",
-    "title",
-    "genres",
-    "year",
-    "movie_avg_rating",
-    "movie_num_ratings",
-    "movie_popularity",
-]
-
-# Relative path inside the container / local run
-_FEATURE_STORE = _PROJECT_ROOT / "data" / "processed" / "feature_store"
-_DATASET_TAG = "ml_v_20260215_184134"
-_LINKS_CSV = _PROJECT_ROOT / "data" / "raw" / "ml-25m" / "links.csv"
+# Pre-extracted movie catalogue (17K rows) — produced by `make extract-movies`.
+# ~300× smaller than reading the full interaction parquet.
+_MOVIES_PARQUET = _PROJECT_ROOT / "data" / "processed" / "movies.parquet"
 
 
 class PopularityService:
@@ -48,35 +36,21 @@ class PopularityService:
     is read only once per application lifetime.
     """
 
-    def __init__(self, feature_store_path: Optional[Path] = None, dataset_tag: str = _DATASET_TAG):
-        self._path = (feature_store_path or _FEATURE_STORE) / dataset_tag / "train.parquet"
+    def __init__(self, movies_path: Optional[Path] = None):
+        self._path = movies_path or _MOVIES_PARQUET
         self._movies: Optional[pd.DataFrame] = None
 
     def _load(self) -> pd.DataFrame:
-        """Read parquet, keep one row per movie, sort by popularity."""
-        logger.info(f"Loading feature store from {self._path}")
-
-        df = pd.read_parquet(self._path, columns=_MOVIE_COLS)
-
-        # Each (userId, movieId) pair is a row — deduplicate to unique movies
-        movies = (
-            df.drop_duplicates("movieId")
-            .sort_values("movie_popularity", ascending=False)
-            .reset_index(drop=True)
-        )
-
-        # Merge TMDB / IMDB links
-        if _LINKS_CSV.exists():
-            links = pd.read_csv(_LINKS_CSV, dtype={"imdbId": str})
-            movies = movies.merge(links[["movieId", "imdbId", "tmdbId"]], on="movieId", how="left")
-            logger.info("Merged links.csv — tmdb_id / imdb_id available")
-        else:
-            movies["imdbId"] = None
-            movies["tmdbId"] = None
-            logger.warning(f"links.csv not found at {_LINKS_CSV}")
-
-        logger.info(f"Loaded {len(movies):,} unique movies")
-        return movies
+        """Read movies.parquet — already deduplicated, sorted and link-merged."""
+        logger.info(f"Loading movie catalogue from {self._path}")
+        if not self._path.exists():
+            raise FileNotFoundError(
+                f"movies.parquet not found at {self._path}. "
+                "Run `make extract-movies` (or `make preprocess`) to generate it."
+            )
+        df = pd.read_parquet(self._path)
+        logger.info(f"Loaded {len(df):,} movies ({self._path.stat().st_size // 1024} KB)")
+        return df
 
     def _ensure_movies_loaded(self) -> None:
         """Public helper so other services can trigger loading without a full get_popular() call."""

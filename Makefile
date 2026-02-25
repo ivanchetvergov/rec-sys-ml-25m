@@ -18,7 +18,7 @@ NPM ?= $(shell command -v npm 2>/dev/null \
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess \
+.PHONY: help install preprocess extract-movies \
         train-popularity train-popularity-sample \
         train-cf train-cf-sample \
         train-als train-als-sample \
@@ -34,6 +34,7 @@ help:
 	@echo ""
 	@echo "Data preparation:"
 	@echo "  make preprocess             - Run MovieLens preprocessing pipeline"
+	@echo "  make extract-movies         - Extract movie catalogue → data/processed/movies.parquet"
 	@echo ""
 	@echo "Web:"
 	@echo "  make backend                - Run FastAPI backend locally (port 8000)"
@@ -64,6 +65,11 @@ install:
 
 preprocess:
 	$(PYTHON) src/pipeline/preprocess_pipeline.py
+	$(MAKE) extract-movies
+
+extract-movies:
+	@echo "Extracting movie catalogue to data/processed/movies.parquet …"
+	$(PYTHON) -m src.pipeline.extract_movies --dataset-tag $(DATASET_TAG)
 
 train-popularity:
 	$(PYTHON) src/training/train_popularity.py \
