@@ -13,7 +13,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U recsys -d recsys']
+      test: [ 'CMD-SHELL', 'pg_isready -U recsys -d recsys' ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,6 +28,8 @@ services:
       - ./backend/app:/app/app
       # pre-extracted movie catalogue (~17K rows, ~1 MB) — run `make extract-movies` to regenerate
       - ./data/processed/movies.parquet:/app/data/processed/movies.parquet:ro
+      # item-item similarity index — run `make build-similarity` to regenerate
+      - ./data/processed/similarity_index.parquet:/app/data/processed/similarity_index.parquet:ro
       # trained two-stage model artifacts
       - ./data/models:/app/data/models:ro
       # src package — needed for TwoStageRecommender imports

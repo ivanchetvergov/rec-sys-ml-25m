@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import Movie, MovieDetails, PersonalRecsResponse, PopularMoviesResponse
+from app.schemas import Movie, MovieDetails, PersonalRecsResponse, PopularMoviesResponse, SimilarMoviesResponse
 from app.services.popularity_service import PopularityService, get_popularity_service
 from app.services.recommender_service import RecommenderService, get_recommender_service
+from app.services.similarity_service import SimilarityService, get_similarity_service
 from app.services.tmdb_service import TMDBService, get_tmdb_service
 
 router = APIRouter(prefix="/movies", tags=["movies"])
@@ -48,6 +49,42 @@ def personal_recommendations(
     )
     return PersonalRecsResponse(
         user_id=user_id,
+        model=model_name,
+        total_returned=len(movies),
+        movies=movies,
+    )
+
+
+@router.get("/{movie_id}/similar", response_model=SimilarMoviesResponse)
+def similar_movies(
+    movie_id: int,
+    limit: int = Query(20, ge=1, le=50, description="Number of similar movies to return"),
+    sim_service: SimilarityService = Depends(get_similarity_service),
+    pop_service: PopularityService = Depends(get_popularity_service),
+):
+    """
+    Returns movies similar to the given movie_id based on iALS item vectors
+    (cosine similarity). Falls back to genre-based Jaccard if ALS index is
+    not available.
+    """
+    similar_ids = sim_service.get_similar_ids(movie_id, n=limit)
+    if not similar_ids:
+        return SimilarMoviesResponse(
+            movie_id=movie_id,
+            model="not_available",
+            total_returned=0,
+            movies=[],
+        )
+
+    movies = []
+    for mid in similar_ids:
+        m = pop_service.get_movie(mid)
+        if m:
+            movies.append(m)
+
+    model_name = "als_cosine" if sim_service.available else "genre_jaccard"
+    return SimilarMoviesResponse(
+        movie_id=movie_id,
         model=model_name,
         total_returned=len(movies),
         movies=movies,

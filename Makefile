@@ -18,7 +18,7 @@ NPM ?= $(shell command -v npm 2>/dev/null \
 DATASET_TAG ?= ml_v_20260215_184134
 MLFLOW_PORT ?= 5000
 
-.PHONY: help install preprocess extract-movies \
+.PHONY: help install preprocess extract-movies build-similarity \
         train-popularity train-popularity-sample \
         train-cf train-cf-sample \
         train-als train-als-sample \
@@ -35,6 +35,7 @@ help:
 	@echo "Data preparation:"
 	@echo "  make preprocess             - Run MovieLens preprocessing pipeline"
 	@echo "  make extract-movies         - Extract movie catalogue → data/processed/movies.parquet"
+	@echo "  make build-similarity       - Build ALS item-item similarity index → data/processed/similarity_index.parquet"
 	@echo ""
 	@echo "Web:"
 	@echo "  make backend                - Run FastAPI backend locally (port 8000)"
@@ -70,6 +71,10 @@ preprocess:
 extract-movies:
 	@echo "Extracting movie catalogue to data/processed/movies.parquet …"
 	$(PYTHON) -m src.pipeline.extract_movies --dataset-tag $(DATASET_TAG)
+
+build-similarity:
+	@echo "Building item-item similarity index …"
+	$(PYTHON) -m src.pipeline.build_similarity_index --n-similar 20
 
 train-popularity:
 	$(PYTHON) src/training/train_popularity.py \

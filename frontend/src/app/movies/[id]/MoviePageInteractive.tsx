@@ -7,10 +7,10 @@
  *  - Star rating + Watched + Watchlist buttons
  *  - Write/edit review textarea with Save
  *  - Saved reviews carousel (localStorage-based)
- *  - Similar movies row (genre-matched, fetched from catalog)
+ *  - Similar movies row (ALS cosine similarity via /api/movies/{id}/similar)
  */
 import type { Movie } from '@/lib/api'
-import { fetchPopularMovies } from '@/lib/api'
+import { fetchSimilarMovies } from '@/lib/api'
 import {
     addToWatchlist,
     addWatched,
@@ -165,21 +165,12 @@ export default function MoviePageInteractive({ movie }: Props) {
 
     useEffect(() => { loadReviews() }, [loadReviews])
 
-    // ── Load similar movies (genre-based)
+    // ── Load similar movies (ALS cosine similarity via API)
     useEffect(() => {
-        const genres = movie.genres?.split('|') ?? []
-        if (genres.length === 0) return
-        fetchPopularMovies(100, 0)
-            .then(res => {
-                const filtered = res.movies.filter(m => {
-                    if (m.id === movie.id) return false
-                    const mg = m.genres?.split('|') ?? []
-                    return mg.some(g => genres.includes(g))
-                })
-                setSimilar(filtered.slice(0, 24))
-            })
+        fetchSimilarMovies(movie.id, 24)
+            .then(setSimilar)
             .catch(() => { })
-    }, [movie.id, movie.genres])
+    }, [movie.id])
 
     // ── Save review
     const handleSave = () => {

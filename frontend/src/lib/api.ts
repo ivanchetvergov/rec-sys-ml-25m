@@ -143,3 +143,25 @@ export async function fetchPersonalRecs(
 		return null
 	}
 }
+
+/**
+ * Fetch item-item similar movies for a given movieId.
+ * Uses ALS cosine similarity index on the backend (falls back to genre Jaccard).
+ * Never throws — returns empty array on error.
+ */
+export async function fetchSimilarMovies(
+	movieId: number,
+	limit = 20,
+): Promise<Movie[]> {
+	try {
+		const res = await fetch(
+			`${API_URL}/api/movies/${movieId}/similar?limit=${limit}`,
+			{ cache: 'no-store' },
+		)
+		if (!res.ok) return []
+		const data = await res.json()
+		return data.movies ?? []
+	} catch {
+		return []
+	}
+}

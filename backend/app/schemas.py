@@ -54,3 +54,10 @@ class PersonalRecsResponse(BaseModel):
     model: str          # "two_stage" | "popularity_fallback"
     total_returned: int
     movies: List[PersonalRec]
+
+
+class SimilarMoviesResponse(BaseModel):
+    movie_id: int
+    model: str          # "als_cosine" | "genre_jaccard" | "not_available"
+    total_returned: int
+    movies: List[Movie]

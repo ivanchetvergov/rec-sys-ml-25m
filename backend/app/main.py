@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.movies import router as movies_router
 from app.services.popularity_service import get_popularity_service
 from app.services.recommender_service import get_recommender_service
+from app.services.similarity_service import get_similarity_service
 
 load_dotenv()  # loads backend/.env if present
 
@@ -42,6 +43,11 @@ async def _warm_up() -> None:
     rec._ensure_loaded()
     status = "two_stage ready" if rec.model_available else "model not found — popularity fallback"
     logger.info(f"RecommenderService ready — {status}")
+
+    logger.info("Warming up SimilarityService …")
+    sim = get_similarity_service()
+    sim._ensure_loaded()
+    logger.info(f"SimilarityService ready — available={sim.available}")
 
 
 @app.get("/api/health")
