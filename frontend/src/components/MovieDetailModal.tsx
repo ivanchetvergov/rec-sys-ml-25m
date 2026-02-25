@@ -115,7 +115,10 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 		if (!token) return
 		await upsertReview(token, movie.id, movie.title, userRating, review)
 		setSaved(true)
-		setTimeout(() => setSaved(false), 2000)
+		setTimeout(() => {
+			setSaved(false)
+			onClose()
+		}, 1000)
 	}
 
 	const genres = movie.genres?.split('|') ?? []
