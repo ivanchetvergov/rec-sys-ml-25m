@@ -1,11 +1,11 @@
 # Makefile for RecSys Project
 # Python environment: /Users/timuradiatullin/myvenv
 
-# PYTHON = /Users/timuradiatullin/myvenv/bin/python
-# PIP = /Users/timuradiatullin/myvenv/bin/pip
+PYTHON = /Users/timuradiatullin/myvenv/bin/python
+PIP = /Users/timuradiatullin/myvenv/bin/pip
 
-PYTHON = /Users/ivan/myvenv/bin/python
-PIP = /Users/ivan/myvenv/bin/pip
+# PYTHON = /Users/ivan/myvenv/bin/python
+# PIP = /Users/ivan/myvenv/bin/pip
 
 
 # Node — auto-detect common macOS locations; override with: make frontend NPM=/path/to/npm
