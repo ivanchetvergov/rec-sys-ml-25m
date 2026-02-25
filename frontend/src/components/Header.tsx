@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import type { AuthUser } from '@/lib/api'
+import { clearAuth, getAuthUser, isLoggedIn } from '@/lib/authStore'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getAuthUser, clearAuth, isLoggedIn } from '@/lib/authStore'
-import type { AuthUser } from '@/lib/api'
+import { useEffect, useState } from 'react'
 
 export default function Header() {
 	const router = useRouter()

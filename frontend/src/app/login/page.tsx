@@ -1,10 +1,10 @@
 'use client'
 
+import { loginUser } from '@/lib/api'
+import { setAuth } from '@/lib/authStore'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { loginUser } from '@/lib/api'
-import { setAuth } from '@/lib/authStore'
 
 export default function LoginPage() {
 	const router = useRouter()

@@ -385,3 +385,80 @@ export async function deleteReview(
 		return false
 	}
 }
+
+// ── Watched (DB) ──────────────────────────────────────────────────────────────
+
+export interface WatchedItem {
+	id: number
+	user_id: number
+	movie_id: number
+	title: string
+	genres: string | null
+	year: number | null
+	avg_rating: number | null
+	num_ratings: number | null
+	popularity_score: number | null
+	tmdb_id: number | null
+	imdb_id: string | null
+	watched_at: string
+}
+
+export async function fetchWatched(token: string): Promise<WatchedItem[]> {
+	try {
+		const res = await fetch(`${API_URL}/api/watched`, {
+			headers: { Authorization: `Bearer ${token}` },
+			cache: 'no-store',
+		})
+		if (!res.ok) return []
+		return res.json()
+	} catch {
+		return []
+	}
+}
+
+export async function addWatchedDB(
+	token: string,
+	movie: Movie,
+): Promise<WatchedItem | null> {
+	try {
+		const res = await fetch(`${API_URL}/api/watched`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({
+				movie_id: movie.id,
+				title: movie.title,
+				genres: movie.genres,
+				year: movie.year,
+				avg_rating: movie.avg_rating,
+				num_ratings: movie.num_ratings,
+				popularity_score: movie.popularity_score,
+				tmdb_id: movie.tmdb_id,
+				imdb_id: movie.imdb_id,
+			}),
+			cache: 'no-store',
+		})
+		if (!res.ok) return null
+		return res.json()
+	} catch {
+		return null
+	}
+}
+
+export async function removeWatchedDB(
+	token: string,
+	movieId: number,
+): Promise<boolean> {
+	try {
+		const res = await fetch(`${API_URL}/api/watched/${movieId}`, {
+			method: 'DELETE',
+			headers: { Authorization: `Bearer ${token}` },
+			cache: 'no-store',
+		})
+		return res.ok
+	} catch {
+		return false
+	}
+}

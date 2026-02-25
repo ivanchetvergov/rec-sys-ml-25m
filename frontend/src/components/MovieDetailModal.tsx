@@ -1,12 +1,14 @@
 'use client'
 
 import type { Movie, MovieDetails } from '@/lib/api'
-import { fetchMovieDetails, addToWatchlist as apiAddWatchlist, removeFromWatchlist as apiRemoveWatchlist, upsertReview } from '@/lib/api'
 import {
-	addWatched,
-	isWatched,
-	removeWatched,
-} from '@/lib/userStore'
+	addWatchedDB,
+	addToWatchlist as apiAddWatchlist,
+	removeFromWatchlist as apiRemoveWatchlist,
+	fetchMovieDetails,
+	removeWatchedDB,
+	upsertReview,
+} from '@/lib/api'
 import { getToken } from '@/lib/authStore'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -65,11 +67,6 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	const [watched, setWatched] = useState(false)
 	const [inWatchlist, setInWatchlist] = useState(false)
 
-	// Init watched from localStorage; watchlist state will sync from DB
-	useEffect(() => {
-		setWatched(isWatched(movie.id))
-	}, [movie.id])
-
 	// Load TMDB details
 	useEffect(() => {
 		setLoading(true)
@@ -78,22 +75,27 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 			.finally(() => setLoading(false))
 	}, [movie.id])
 
-	// Load saved review + watchlist state from DB (if logged in)
+	// Load saved review + watchlist + watched state from DB (if logged in)
 	useEffect(() => {
 		const token = getToken()
 		if (!token) return
-		import('@/lib/api').then(({ fetchReviews, fetchWatchlist }) => {
-			fetchReviews(token).then(all => {
-				const mine = all.find(r => r.movie_id === movie.id)
-				if (mine) {
-					setUserRating(mine.rating)
-					setReview(mine.review_text ?? '')
-				}
-			})
-			fetchWatchlist(token).then(wl => {
-				setInWatchlist(wl.some(w => w.movie_id === movie.id))
-			})
-		})
+		import('@/lib/api').then(
+			({ fetchReviews, fetchWatchlist, fetchWatched }) => {
+				fetchReviews(token).then(all => {
+					const mine = all.find(r => r.movie_id === movie.id)
+					if (mine) {
+						setUserRating(mine.rating)
+						setReview(mine.review_text ?? '')
+					}
+				})
+				fetchWatchlist(token).then(wl => {
+					setInWatchlist(wl.some(w => w.movie_id === movie.id))
+				})
+				fetchWatched(token).then(wl => {
+					setWatched(wl.some(w => w.movie_id === movie.id))
+				})
+			},
+		)
 	}, [movie.id])
 
 	// Close on Escape
@@ -278,12 +280,14 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 								<StarRating value={userRating} onChange={setUserRating} />
 								{/* Watched */}
 								<button
-									onClick={() => {
+									onClick={async () => {
+										const token = getToken()
+										if (!token) return
 										if (watched) {
-											removeWatched(movie.id)
+											await removeWatchedDB(token, movie.id)
 											setWatched(false)
 										} else {
-											addWatched(movie.id)
+											await addWatchedDB(token, movie)
 											setWatched(true)
 										}
 									}}
@@ -297,10 +301,29 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 									}}
 								>
 									{watched ? (
-										<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path fillRule='evenodd' d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z' clipRule='evenodd' /></svg>
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											viewBox='0 0 20 20'
+											fill='currentColor'
+											className='w-3.5 h-3.5'
+										>
+											<path
+												fillRule='evenodd'
+												d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z'
+												clipRule='evenodd'
+											/>
+										</svg>
 									) : (
-										<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' /></svg>
-									)} Watched
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											viewBox='0 0 20 20'
+											fill='currentColor'
+											className='w-3.5 h-3.5'
+										>
+											<path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' />
+										</svg>
+									)}{' '}
+									Watched
 								</button>
 								{/* Watchlist */}
 								<button
@@ -324,7 +347,14 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 										color: inWatchlist ? '#e50914' : '#a1a1aa',
 									}}
 								>
-									<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='w-3.5 h-3.5'><path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' /></svg>
+									<svg
+										xmlns='http://www.w3.org/2000/svg'
+										viewBox='0 0 20 20'
+										fill='currentColor'
+										className='w-3.5 h-3.5'
+									>
+										<path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' />
+									</svg>
 									{inWatchlist ? 'In Watchlist' : 'Watchlist'}
 								</button>
 							</div>
@@ -378,7 +408,20 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 										className={pillClass}
 										style={pillBase}
 									>
-										<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											className='w-3.5 h-3.5'
+											fill='none'
+											viewBox='0 0 24 24'
+											stroke='currentColor'
+											strokeWidth={2}
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+											/>
+										</svg>
 										IMDB
 									</a>
 								)}
@@ -390,7 +433,20 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 										className={pillClass}
 										style={pillBase}
 									>
-										<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											className='w-3.5 h-3.5'
+											fill='none'
+											viewBox='0 0 24 24'
+											stroke='currentColor'
+											strokeWidth={2}
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+											/>
+										</svg>
 										TMDB
 									</a>
 								)}
@@ -401,7 +457,20 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 									className={pillClass}
 									style={pillBase}
 								>
-									<svg xmlns='http://www.w3.org/2000/svg' className='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2}><path strokeLinecap='round' strokeLinejoin='round' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' /></svg>
+									<svg
+										xmlns='http://www.w3.org/2000/svg'
+										className='w-3.5 h-3.5'
+										fill='none'
+										viewBox='0 0 24 24'
+										stroke='currentColor'
+										strokeWidth={2}
+									>
+										<path
+											strokeLinecap='round'
+											strokeLinejoin='round'
+											d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+										/>
+									</svg>
 									Full page
 								</a>
 							</div>

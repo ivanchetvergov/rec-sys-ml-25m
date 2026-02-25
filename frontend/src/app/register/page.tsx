@@ -1,10 +1,10 @@
 'use client'
 
+import { registerUser } from '@/lib/api'
+import { setAuth } from '@/lib/authStore'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { registerUser } from '@/lib/api'
-import { setAuth } from '@/lib/authStore'
 
 export default function RegisterPage() {
 	const router = useRouter()
