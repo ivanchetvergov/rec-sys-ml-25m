@@ -8,6 +8,7 @@ from app.routers.movies import router as movies_router
 from app.services.popularity_service import get_popularity_service
 from app.services.recommender_service import get_recommender_service
 from app.services.similarity_service import get_similarity_service
+from app.database import run_migrations
 
 load_dotenv()  # loads backend/.env if present
 
@@ -33,6 +34,11 @@ app.include_router(movies_router, prefix="/api")
 async def _warm_up() -> None:
     """Pre-load all heavy services so the first HTTP request is fast."""
     logger = logging.getLogger("startup")
+
+    logger.info("Running database migrations...")
+    run_migrations()
+    logger.info("Migrations done. Starting service warmup...")
+
     logger.info("Warming up PopularityService...")
     pop = get_popularity_service()
     pop._ensure_movies_loaded()
