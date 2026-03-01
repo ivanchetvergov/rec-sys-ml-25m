@@ -139,8 +139,8 @@ train-ranker:
 		--ranker-iterations 600 \
 		--ranker-depth 6 \
 		--ranker-loss YetiRank \
-		--n-candidates 1000 \
-		--max-ranker-users 4000 \
+		--n-candidates 3000 \
+		--max-ranker-users 10000 \
 		--k-values 5 10 20
 
 train-ranker-sample:
