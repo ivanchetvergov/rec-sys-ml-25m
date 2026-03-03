@@ -48,15 +48,26 @@ export default function Header() {
 				setMenuOpen(false)
 				setSwitchOpen(false)
 			}
-			if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-				setSearchOpen(false)
-			}
 		}
-		if (menuOpen || searchOpen) {
+		if (menuOpen) {
 			document.addEventListener('mousedown', handleClickOutside)
 		}
 		return () => document.removeEventListener('mousedown', handleClickOutside)
-	}, [menuOpen, searchOpen])
+	}, [menuOpen])
+
+	// Close search on Escape
+	useEffect(() => {
+		function handleKey(e: KeyboardEvent) {
+			if (e.key === 'Escape') {
+				setSearchOpen(false)
+				setSearchQuery('')
+			}
+		}
+		if (searchOpen) {
+			document.addEventListener('keydown', handleKey)
+		}
+		return () => document.removeEventListener('keydown', handleKey)
+	}, [searchOpen])
 
 	function handleLogout() {
 		clearAuth()
@@ -114,51 +125,57 @@ export default function Header() {
 
 			{/* ── Right: search + avatar/sign-in ───────────────────────────── */}
 			<div className='flex items-center gap-4'>
-				{/* Search */}
-				<div className='relative' ref={searchRef}>
-					<button
-						onClick={() => {
-							setSearchOpen(v => !v)
-							setMenuOpen(false)
-							setSwitchOpen(false)
-						}}
-						className='text-zinc-300 hover:text-white transition-colors'
-						aria-label='Search'
+					{/* Search trigger */}
+				<button
+					onClick={() => {
+						setSearchOpen(true)
+						setMenuOpen(false)
+						setSwitchOpen(false)
+					}}
+					className='text-zinc-300 hover:text-white transition-colors'
+					aria-label='Search'
+				>
+					<svg
+						xmlns='http://www.w3.org/2000/svg'
+						className='w-5 h-5'
+						fill='none'
+						viewBox='0 0 24 24'
+						stroke='currentColor'
+						strokeWidth={2}
 					>
-						<svg
-							xmlns='http://www.w3.org/2000/svg'
-							className='w-5 h-5'
-							fill='none'
-							viewBox='0 0 24 24'
-							stroke='currentColor'
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap='round'
-								strokeLinejoin='round'
-								d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
-							/>
-						</svg>
-					</button>
+						<path
+							strokeLinecap='round'
+							strokeLinejoin='round'
+							d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
+						/>
+					</svg>
+				</button>
 
-					{/* Search popup */}
-					{searchOpen && (
+				{/* ── Spotlight search overlay ─────────────────────────── */}
+				{searchOpen && (
+					<div className='fixed inset-0 z-[9999] flex items-start justify-center pt-[18vh]'
+						onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+					>
+						{/* Backdrop */}
+						<div className='absolute inset-0 bg-black/60 backdrop-blur-sm' />
+
+						{/* Spotlight card */}
 						<div
-							className='absolute right-0 mt-3 w-80 rounded-xl overflow-hidden shadow-2xl'
+							ref={searchRef}
+							onClick={e => e.stopPropagation()}
+							className='relative w-full max-w-[620px] rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150'
 							style={{
-								background: 'rgba(18,18,18,0.97)',
-								border: '1px solid rgba(255,255,255,0.1)',
-								backdropFilter: 'blur(12px)',
+								background: 'rgba(30, 30, 30, 0.92)',
+								border: '1px solid rgba(255,255,255,0.12)',
+								backdropFilter: 'blur(40px)',
+								boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset',
 							}}
 						>
-							{/* Input row */}
-							<div
-								className='flex items-center gap-3 px-4 py-3'
-								style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-							>
+							{/* Search input row */}
+							<div className='flex items-center gap-3 px-5 py-4'>
 								<svg
 									xmlns='http://www.w3.org/2000/svg'
-									className='w-4 h-4 text-zinc-500 flex-shrink-0'
+									className='w-5 h-5 text-zinc-400 flex-shrink-0'
 									fill='none'
 									viewBox='0 0 24 24'
 									stroke='currentColor'
@@ -176,57 +193,43 @@ export default function Header() {
 									value={searchQuery}
 									onChange={e => setSearchQuery(e.target.value)}
 									placeholder='Search movies…'
-									className='flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none'
+									className='flex-1 bg-transparent text-lg text-white placeholder-zinc-500 outline-none'
 								/>
-								{searchQuery && (
+								{searchQuery ? (
 									<button
 										onClick={() => setSearchQuery('')}
 										className='text-zinc-500 hover:text-white transition-colors'
 									>
-										<svg
-											xmlns='http://www.w3.org/2000/svg'
-											className='w-4 h-4'
-											fill='none'
-											viewBox='0 0 24 24'
-											stroke='currentColor'
-											strokeWidth={2.5}
-										>
-											<path
-												strokeLinecap='round'
-												strokeLinejoin='round'
-												d='M6 18L18 6M6 6l12 12'
-											/>
+										<svg xmlns='http://www.w3.org/2000/svg' className='w-4 h-4' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={2.5}>
+											<path strokeLinecap='round' strokeLinejoin='round' d='M6 18L18 6M6 6l12 12' />
 										</svg>
 									</button>
+								) : (
+									<kbd className='text-[11px] text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5 font-mono'>ESC</kbd>
 								)}
 							</div>
 
+							{/* Divider */}
+							<div className='h-px' style={{ background: 'rgba(255,255,255,0.08)' }} />
+
 							{/* Results placeholder */}
-							<div className='px-4 py-8 flex flex-col items-center gap-2'>
+							<div className='px-5 py-10 flex flex-col items-center gap-3'>
 								<svg
 									xmlns='http://www.w3.org/2000/svg'
-									className='w-10 h-10 text-zinc-700'
+									className='w-12 h-12 text-zinc-700'
 									fill='none'
 									viewBox='0 0 24 24'
 									stroke='currentColor'
-									strokeWidth={1.2}
+									strokeWidth={1}
 								>
-									<path
-										strokeLinecap='round'
-										strokeLinejoin='round'
-										d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
-									/>
+									<path strokeLinecap='round' strokeLinejoin='round' d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z' />
 								</svg>
-								<p className='text-sm text-zinc-500'>
-									Search for movies by title
-								</p>
-								<p className='text-xs text-zinc-600'>
-									Results will appear here
-								</p>
+								<p className='text-sm text-zinc-400'>Search for movies by title</p>
+								<p className='text-xs text-zinc-600'>Results will appear here</p>
 							</div>
 						</div>
-					)}
-				</div>
+					</div>
+				)}
 
 				{user ? (
 					/* ── Avatar with dropdown ──────────────────────────────── */
