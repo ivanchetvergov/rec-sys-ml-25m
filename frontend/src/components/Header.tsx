@@ -1,7 +1,7 @@
 'use client'
 
 import type { AuthUser, Movie } from '@/lib/api'
-import { searchMovies } from '@/lib/api'
+import { fetchMovieDetails, searchMovies } from '@/lib/api'
 import type { StoredAccount } from '@/lib/authStore'
 import {
 	clearAuth,
@@ -28,6 +28,7 @@ export default function Header() {
 	const [searchQuery, setSearchQuery] = useState('')
 	const [searchResults, setSearchResults] = useState<Movie[]>([])
 	const [searchLoading, setSearchLoading] = useState(false)
+	const [posters, setPosters] = useState<Record<number, string | null>>({})
 
 	const menuRef = useRef<HTMLDivElement>(null)
 	const searchRef = useRef<HTMLDivElement>(null)
@@ -93,6 +94,22 @@ export default function Header() {
 		}, 300)
 		return () => clearTimeout(timer)
 	}, [searchQuery])
+
+	// Load posters for search results
+	useEffect(() => {
+		if (!searchResults.length) { setPosters({}); return }
+		let cancelled = false
+		const ids = searchResults.map(m => m.id)
+		ids.forEach(id => {
+			if (posters[id] !== undefined) return  // already loaded or loading
+			setPosters(p => ({ ...p, [id]: null }))  // mark as loading
+			fetchMovieDetails(id).then(d => {
+				if (!cancelled) setPosters(p => ({ ...p, [id]: d?.poster_url ?? '' }))
+			})
+		})
+		return () => { cancelled = true }
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [searchResults])
 
 	function handleLogout() {
 		clearAuth()
@@ -262,13 +279,13 @@ export default function Header() {
 							<div className='max-h-[50vh] overflow-y-auto'>
 								{searchLoading ? (
 									/* Skeleton loader */
-									<div className='px-5 py-3 space-y-3'>
+									<div className='px-4 py-2 space-y-2'>
 										{[...Array(4)].map((_, i) => (
 											<div
 												key={i}
-												className='flex items-center gap-3 animate-pulse'
+												className='flex items-center gap-3 animate-pulse px-1 py-1'
 											>
-												<div className='w-8 h-8 rounded bg-zinc-700/60' />
+												<div className='w-9 h-[52px] rounded-md bg-zinc-700/60 flex-shrink-0' />
 												<div className='flex-1 space-y-1.5'>
 													<div className='h-3 w-3/4 rounded bg-zinc-700/60' />
 													<div className='h-2.5 w-1/2 rounded bg-zinc-800/60' />
@@ -287,24 +304,23 @@ export default function Header() {
 													setSearchQuery('')
 													router.push(`/movies/${movie.id}`)
 												}}
-												className='w-full flex items-center gap-3 px-5 py-2.5 text-left hover:bg-white/[0.06] transition-colors cursor-pointer'
+												className='w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-white/[0.06] transition-colors cursor-pointer'
 											>
-												{/* Film icon */}
-												<div className='w-8 h-8 rounded bg-zinc-800 flex items-center justify-center flex-shrink-0'>
-													<svg
-														xmlns='http://www.w3.org/2000/svg'
-														className='w-4 h-4 text-zinc-500'
-														fill='none'
-														viewBox='0 0 24 24'
-														stroke='currentColor'
-														strokeWidth={1.5}
-													>
-														<path
-															strokeLinecap='round'
-															strokeLinejoin='round'
-															d='M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z'
+												{/* Poster thumbnail */}
+												<div className='w-9 h-[52px] rounded-md overflow-hidden bg-zinc-800 flex-shrink-0 relative'>
+													{posters[movie.id] ? (
+														<img
+															src={posters[movie.id]!}
+															alt=''
+															className='w-full h-full object-cover'
 														/>
-													</svg>
+													) : (
+														<div className='w-full h-full flex items-center justify-center'>
+															<svg xmlns='http://www.w3.org/2000/svg' className='w-4 h-4 text-zinc-600' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={1.5}>
+																<path strokeLinecap='round' strokeLinejoin='round' d='M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z' />
+															</svg>
+														</div>
+													)}
 												</div>
 												{/* Title + meta */}
 												<div className='flex-1 min-w-0'>
