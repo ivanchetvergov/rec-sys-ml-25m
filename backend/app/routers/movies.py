@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas import Movie, MovieDetails, PersonalRecsResponse, PopularMoviesResponse, SimilarMoviesResponse
+from app.schemas import Movie, MovieDetails, PersonalRecsResponse, PopularMoviesResponse, SearchResponse, SimilarMoviesResponse
 from app.services.popularity_service import PopularityService, get_popularity_service
 from app.services.recommender_service import RecommenderService, get_recommender_service
 from app.services.similarity_service import SimilarityService, get_similarity_service
@@ -53,6 +53,21 @@ def personal_recommendations(
         total_returned=len(movies),
         movies=movies,
     )
+
+
+@router.get("/search", response_model=SearchResponse)
+def search_movies(
+    q: str = Query("", description="Search query (fuzzy, tolerant to typos)"),
+    limit: int = Query(15, ge=1, le=50, description="Max results"),
+    service: PopularityService = Depends(get_popularity_service),
+):
+    """
+    Fuzzy search for movies by title.
+    Uses rapidfuzz WRatio scoring — tolerant to typos, word reordering,
+    partial matches.
+    """
+    movies = service.search(query=q, limit=limit)
+    return SearchResponse(query=q, total_returned=len(movies), movies=movies)
 
 
 @router.get("/{movie_id}/similar", response_model=SimilarMoviesResponse)

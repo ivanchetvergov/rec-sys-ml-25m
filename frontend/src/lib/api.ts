@@ -462,3 +462,24 @@ export async function removeWatchedDB(
 		return false
 	}
 }
+
+/* ── Search ─────────────────────────────────────────────────────────── */
+
+export interface SearchResponse {
+	query: string
+	total_returned: number
+	movies: Movie[]
+}
+
+/** Fuzzy search movies by title. Tolerant to typos & partial matches. */
+export async function searchMovies(
+	query: string,
+	limit = 15,
+): Promise<SearchResponse> {
+	const res = await fetch(
+		`${API_URL}/api/movies/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+		{ cache: 'no-store' },
+	)
+	if (!res.ok) return { query, total_returned: 0, movies: [] }
+	return res.json()
+}

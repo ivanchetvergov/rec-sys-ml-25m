@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+from rapidfuzz import fuzz, process
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,44 @@ class PopularityService:
             }
             for row in rows.itertuples(index=False)
         ]
+
+    def search(self, query: str, limit: int = 15) -> list[dict]:
+        """
+        Fuzzy search movies by title. Tolerant to typos (uses token_set_ratio
+        for reordering and partial matching, plus WRatio for overall best score).
+        Returns up to `limit` results sorted by relevance.
+        """
+        if not query or not query.strip():
+            return []
+        self._ensure_movies_loaded()
+
+        query = query.strip()
+        titles = self._movies["title"].tolist()
+
+        # rapidfuzz process.extract — returns list of (title, score, index)
+        results = process.extract(
+            query,
+            titles,
+            scorer=fuzz.WRatio,
+            limit=limit,
+            score_cutoff=45,  # drop very poor matches
+        )
+
+        movies = []
+        for _title, score, idx in results:
+            row = self._movies.iloc[idx]
+            movies.append({
+                "id": int(row.movieId),
+                "title": row.title,
+                "genres": row.genres if row.genres != "(no genres listed)" else None,
+                "year": int(row.year) if pd.notna(row.year) else None,
+                "avg_rating": round(float(row.movie_avg_rating), 2) if pd.notna(row.movie_avg_rating) else None,
+                "num_ratings": int(row.movie_num_ratings) if pd.notna(row.movie_num_ratings) else None,
+                "popularity_score": round(float(row.movie_popularity), 4) if pd.notna(row.movie_popularity) else None,
+                "tmdb_id": int(row.tmdbId) if pd.notna(row.tmdbId) else None,
+                "imdb_id": str(row.imdbId) if pd.notna(row.imdbId) else None,
+            })
+        return movies
 
     def get_tmdb_id(self, movie_id: int) -> Optional[int]:
         """Return the TMDB id for a given MovieLens movieId, or None."""
