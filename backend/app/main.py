@@ -9,6 +9,7 @@ from app.routers.auth import router as auth_router
 from app.routers.watchlist import router as watchlist_router
 from app.routers.reviews import router as reviews_router
 from app.routers.watched import router as watched_router
+from app.routers.admin import router as admin_router
 from app.services.popularity_service import get_popularity_service
 from app.services.recommender_service import get_recommender_service
 from app.services.similarity_service import get_similarity_service
@@ -36,6 +37,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(watchlist_router, prefix="/api")
 app.include_router(reviews_router, prefix="/api")
 app.include_router(watched_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 @app.on_event("startup")

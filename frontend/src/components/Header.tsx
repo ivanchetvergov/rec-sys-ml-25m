@@ -97,18 +97,23 @@ export default function Header() {
 
 	// Load posters for search results
 	useEffect(() => {
-		if (!searchResults.length) { setPosters({}); return }
+		if (!searchResults.length) {
+			setPosters({})
+			return
+		}
 		let cancelled = false
 		const ids = searchResults.map(m => m.id)
 		ids.forEach(id => {
-			if (posters[id] !== undefined) return  // already loaded or loading
-			setPosters(p => ({ ...p, [id]: null }))  // mark as loading
+			if (posters[id] !== undefined) return // already loaded or loading
+			setPosters(p => ({ ...p, [id]: null })) // mark as loading
 			fetchMovieDetails(id).then(d => {
 				if (!cancelled) setPosters(p => ({ ...p, [id]: d?.poster_url ?? '' }))
 			})
 		})
-		return () => { cancelled = true }
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+		return () => {
+			cancelled = true
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [searchResults])
 
 	function handleLogout() {
@@ -316,8 +321,19 @@ export default function Header() {
 														/>
 													) : (
 														<div className='w-full h-full flex items-center justify-center'>
-															<svg xmlns='http://www.w3.org/2000/svg' className='w-4 h-4 text-zinc-600' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={1.5}>
-																<path strokeLinecap='round' strokeLinejoin='round' d='M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z' />
+															<svg
+																xmlns='http://www.w3.org/2000/svg'
+																className='w-4 h-4 text-zinc-600'
+																fill='none'
+																viewBox='0 0 24 24'
+																stroke='currentColor'
+																strokeWidth={1.5}
+															>
+																<path
+																	strokeLinecap='round'
+																	strokeLinejoin='round'
+																	d='M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z'
+																/>
 															</svg>
 														</div>
 													)}
