@@ -462,3 +462,131 @@ export async function removeWatchedDB(
 		return false
 	}
 }
+
+/* ── Search ─────────────────────────────────────────────────────────── */
+
+export interface SearchResponse {
+	query: string
+	total_returned: number
+	movies: Movie[]
+}
+
+/** Fuzzy search movies by title. Tolerant to typos & partial matches. */
+export async function searchMovies(
+	query: string,
+	limit = 15,
+): Promise<SearchResponse> {
+	const res = await fetch(
+		`${API_URL}/api/movies/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+		{ cache: 'no-store' },
+	)
+	if (!res.ok) return { query, total_returned: 0, movies: [] }
+	return res.json()
+}
+
+/* ── Admin API ───────────────────────────────────────────────────────── */
+
+export interface AdminOverview {
+	total_users: number
+	total_watched: number
+	total_reviews: number
+	total_watchlist: number
+	avg_rating: number | null
+	users_today: number
+	active_today: number
+}
+
+export interface DailyActivity {
+	date: string
+	new_users: number
+	new_watched: number
+	new_reviews: number
+	new_watchlist: number
+}
+
+export interface TopMovie {
+	movie_id: number
+	title: string
+	watch_count?: number
+	avg_rating?: number
+	review_count?: number
+}
+
+export interface RatingDist {
+	rating: number
+	count: number
+}
+
+export interface AdminUser {
+	id: number
+	login: string
+	email: string
+	role: string
+	created_at: string
+	watched_count: number
+	review_count: number
+	watchlist_count: number
+}
+
+const adminH = (token: string) => ({
+	Authorization: `Bearer ${token}`,
+	'Content-Type': 'application/json',
+})
+
+export async function fetchAdminOverview(
+	token: string,
+): Promise<AdminOverview> {
+	const r = await fetch(`${API_URL}/api/admin/stats/overview`, {
+		headers: adminH(token),
+		cache: 'no-store',
+	})
+	if (!r.ok) throw new Error('Forbidden')
+	return r.json()
+}
+
+export async function fetchAdminDaily(
+	token: string,
+	days = 30,
+): Promise<DailyActivity[]> {
+	const r = await fetch(`${API_URL}/api/admin/stats/daily?days=${days}`, {
+		headers: adminH(token),
+		cache: 'no-store',
+	})
+	if (!r.ok) return []
+	return r.json()
+}
+
+export async function fetchAdminTopMovies(
+	token: string,
+): Promise<{ most_watched: TopMovie[]; top_rated: TopMovie[] }> {
+	const r = await fetch(`${API_URL}/api/admin/stats/top-movies`, {
+		headers: adminH(token),
+		cache: 'no-store',
+	})
+	if (!r.ok) return { most_watched: [], top_rated: [] }
+	return r.json()
+}
+
+export async function fetchAdminRatingDist(
+	token: string,
+): Promise<RatingDist[]> {
+	const r = await fetch(`${API_URL}/api/admin/stats/rating-distribution`, {
+		headers: adminH(token),
+		cache: 'no-store',
+	})
+	if (!r.ok) return []
+	return r.json()
+}
+
+export async function fetchAdminUsers(
+	token: string,
+	limit = 50,
+	offset = 0,
+): Promise<{ total: number; users: AdminUser[] }> {
+	const r = await fetch(
+		`${API_URL}/api/admin/stats/users?limit=${limit}&offset=${offset}`,
+		{ headers: adminH(token), cache: 'no-store' },
+	)
+	if (!r.ok) return { total: 0, users: [] }
+	return r.json()
+}

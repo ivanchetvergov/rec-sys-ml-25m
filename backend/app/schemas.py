@@ -61,3 +61,9 @@ class SimilarMoviesResponse(BaseModel):
     model: str          # "als_cosine" | "genre_jaccard" | "not_available"
     total_returned: int
     movies: List[Movie]
+
+
+class SearchResponse(BaseModel):
+    query: str
+    total_returned: int
+    movies: List[Movie]

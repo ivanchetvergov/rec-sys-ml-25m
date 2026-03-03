@@ -9,7 +9,7 @@ import {
 	removeWatchedDB,
 	upsertReview,
 } from '@/lib/api'
-import { getToken } from '@/lib/authStore'
+import { getToken, isLoggedIn } from '@/lib/authStore'
 import { useCallback, useEffect, useState } from 'react'
 
 interface Props {
@@ -66,6 +66,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	const [saved, setSaved] = useState(false)
 	const [watched, setWatched] = useState(false)
 	const [inWatchlist, setInWatchlist] = useState(false)
+	const loggedIn = isLoggedIn()
 
 	// Load TMDB details
 	useEffect(() => {
@@ -274,210 +275,227 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 						{/* Divider */}
 						<div style={{ height: 1, background: 'rgba(255,255,255,0.08)' }} />
 
-						{/* Your rating + Watched + Watchlist — all on one row */}
-						<div>
-							<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
-								Your rating
-							</p>
-							<div className='flex items-center gap-3 flex-wrap'>
-								<StarRating value={userRating} onChange={setUserRating} />
-								{/* Watched */}
-								<button
-									onClick={async () => {
-										const token = getToken()
-										if (!token) return
-										if (watched) {
-											await removeWatchedDB(token, movie.id)
-											setWatched(false)
-										} else {
-											await addWatchedDB(token, movie)
-											setWatched(true)
-										}
-									}}
-									className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
-									style={{
-										background: watched
-											? 'rgba(46,160,67,0.2)'
-											: 'rgba(255,255,255,0.07)',
-										border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
-										color: watched ? '#4ade80' : '#a1a1aa',
-									}}
-								>
-									{watched ? (
-										<svg
-											xmlns='http://www.w3.org/2000/svg'
-											viewBox='0 0 20 20'
-											fill='currentColor'
-											className='w-3.5 h-3.5'
-										>
-											<path
-												fillRule='evenodd'
-												d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z'
-												clipRule='evenodd'
-											/>
-										</svg>
-									) : (
-										<svg
-											xmlns='http://www.w3.org/2000/svg'
-											viewBox='0 0 20 20'
-											fill='currentColor'
-											className='w-3.5 h-3.5'
-										>
-											<path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' />
-										</svg>
-									)}{' '}
-									Watched
-								</button>
-								{/* Watchlist */}
-								<button
-									onClick={async () => {
-										const token = getToken()
-										if (!token) return
-										if (inWatchlist) {
-											await apiRemoveWatchlist(token, movie.id)
-											setInWatchlist(false)
-										} else {
-											await apiAddWatchlist(token, movie)
-											setInWatchlist(true)
-										}
-									}}
-									className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
-									style={{
-										background: inWatchlist
-											? 'rgba(229,9,20,0.15)'
-											: 'rgba(255,255,255,0.07)',
-										border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
-										color: inWatchlist ? '#e50914' : '#a1a1aa',
-									}}
-								>
-									<svg
-										xmlns='http://www.w3.org/2000/svg'
-										viewBox='0 0 20 20'
-										fill='currentColor'
-										className='w-3.5 h-3.5'
-									>
-										<path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' />
-									</svg>
-									{inWatchlist ? 'In Watchlist' : 'Watchlist'}
-								</button>
-							</div>
-						</div>
-
-						{/* Review textarea */}
-						<div>
-							<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
-								Your review
-							</p>
-							<textarea
-								value={review}
-								onChange={e => setReview(e.target.value)}
-								placeholder='Write a few words about the movie...'
-								rows={3}
-								className='w-full text-sm text-zinc-300 rounded-lg px-3 py-2.5 resize-none outline-none focus:ring-1 placeholder-zinc-600'
-								style={{
-									background: 'rgba(255,255,255,0.06)',
-									border: '1px solid rgba(255,255,255,0.1)',
-									// @ts-ignore
-									'--tw-ring-color': 'var(--netflix-red)',
-								}}
-							/>
-						</div>
-
-						{/* Save left | IMDB + TMDB + Full page right */}
-						<div className='flex items-center justify-between gap-2 mt-auto pt-1'>
-							{/* Left: Save */}
-							<div className='flex items-center gap-2'>
-								<button
-									onClick={handleSave}
-									disabled={userRating === 0 && review.trim() === ''}
-									className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
+						{!loggedIn ? (
+							<div className='flex flex-col items-center gap-3 py-6'>
+								<p className='text-sm text-zinc-400'>
+									Sign in to rate, review and track movies
+								</p>
+								<a
+									href='/login'
+									className='px-5 py-2 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-80'
 									style={{ background: 'var(--netflix-red)' }}
 								>
-									Save
-								</button>
-								{saved && (
-									<span className='text-sm text-green-400 animate-pulse'>
-										Saved!
-									</span>
-								)}
-							</div>
-							{/* Right: external links */}
-							<div className='flex items-center gap-2'>
-								{movie.imdb_id && (
-									<a
-										href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
-										target='_blank'
-										rel='noopener noreferrer'
-										className={pillClass}
-										style={pillBase}
-									>
-										<svg
-											xmlns='http://www.w3.org/2000/svg'
-											className='w-3.5 h-3.5'
-											fill='none'
-											viewBox='0 0 24 24'
-											stroke='currentColor'
-											strokeWidth={2}
-										>
-											<path
-												strokeLinecap='round'
-												strokeLinejoin='round'
-												d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-											/>
-										</svg>
-										IMDB
-									</a>
-								)}
-								{movie.tmdb_id && (
-									<a
-										href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-										target='_blank'
-										rel='noopener noreferrer'
-										className={pillClass}
-										style={pillBase}
-									>
-										<svg
-											xmlns='http://www.w3.org/2000/svg'
-											className='w-3.5 h-3.5'
-											fill='none'
-											viewBox='0 0 24 24'
-											stroke='currentColor'
-											strokeWidth={2}
-										>
-											<path
-												strokeLinecap='round'
-												strokeLinejoin='round'
-												d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-											/>
-										</svg>
-										TMDB
-									</a>
-								)}
-								<a
-									href={`/movies/${movie.id}`}
-									target='_blank'
-									rel='noopener noreferrer'
-									className={pillClass}
-									style={pillBase}
-								>
-									<svg
-										xmlns='http://www.w3.org/2000/svg'
-										className='w-3.5 h-3.5'
-										fill='none'
-										viewBox='0 0 24 24'
-										stroke='currentColor'
-										strokeWidth={2}
-									>
-										<path
-											strokeLinecap='round'
-											strokeLinejoin='round'
-											d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-										/>
-									</svg>
-									Full page
+									Sign In
 								</a>
 							</div>
-						</div>
+						) : (
+							<>
+								{/* Your rating + Watched + Watchlist — all on one row */}
+								<div>
+									<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
+										Your rating
+									</p>
+									<div className='flex items-center gap-3 flex-wrap'>
+										<StarRating value={userRating} onChange={setUserRating} />
+										{/* Watched */}
+										<button
+											onClick={async () => {
+												const token = getToken()
+												if (!token) return
+												if (watched) {
+													await removeWatchedDB(token, movie.id)
+													setWatched(false)
+												} else {
+													await addWatchedDB(token, movie)
+													setWatched(true)
+												}
+											}}
+											className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+											style={{
+												background: watched
+													? 'rgba(46,160,67,0.2)'
+													: 'rgba(255,255,255,0.07)',
+												border: `1px solid ${watched ? 'rgba(46,160,67,0.5)' : 'rgba(255,255,255,0.12)'}`,
+												color: watched ? '#4ade80' : '#a1a1aa',
+											}}
+										>
+											{watched ? (
+												<svg
+													xmlns='http://www.w3.org/2000/svg'
+													viewBox='0 0 20 20'
+													fill='currentColor'
+													className='w-3.5 h-3.5'
+												>
+													<path
+														fillRule='evenodd'
+														d='M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z'
+														clipRule='evenodd'
+													/>
+												</svg>
+											) : (
+												<svg
+													xmlns='http://www.w3.org/2000/svg'
+													viewBox='0 0 20 20'
+													fill='currentColor'
+													className='w-3.5 h-3.5'
+												>
+													<path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' />
+												</svg>
+											)}{' '}
+											Watched
+										</button>
+										{/* Watchlist */}
+										<button
+											onClick={async () => {
+												const token = getToken()
+												if (!token) return
+												if (inWatchlist) {
+													await apiRemoveWatchlist(token, movie.id)
+													setInWatchlist(false)
+												} else {
+													await apiAddWatchlist(token, movie)
+													setInWatchlist(true)
+												}
+											}}
+											className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all'
+											style={{
+												background: inWatchlist
+													? 'rgba(229,9,20,0.15)'
+													: 'rgba(255,255,255,0.07)',
+												border: `1px solid ${inWatchlist ? 'rgba(229,9,20,0.4)' : 'rgba(255,255,255,0.12)'}`,
+												color: inWatchlist ? '#e50914' : '#a1a1aa',
+											}}
+										>
+											<svg
+												xmlns='http://www.w3.org/2000/svg'
+												viewBox='0 0 20 20'
+												fill='currentColor'
+												className='w-3.5 h-3.5'
+											>
+												<path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' />
+											</svg>
+											{inWatchlist ? 'In Watchlist' : 'Watchlist'}
+										</button>
+									</div>
+								</div>
+
+								{/* Review textarea */}
+								<div>
+									<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
+										Your review
+									</p>
+									<textarea
+										value={review}
+										onChange={e => setReview(e.target.value)}
+										placeholder='Write a few words about the movie...'
+										rows={3}
+										className='w-full text-sm text-zinc-300 rounded-lg px-3 py-2.5 resize-none outline-none focus:ring-1 placeholder-zinc-600'
+										style={{
+											background: 'rgba(255,255,255,0.06)',
+											border: '1px solid rgba(255,255,255,0.1)',
+											// @ts-ignore
+											'--tw-ring-color': 'var(--netflix-red)',
+										}}
+									/>
+								</div>
+
+								{/* Save left | IMDB + TMDB + Full page right */}
+								<div className='flex items-center justify-between gap-2 mt-auto pt-1'>
+									{/* Left: Save */}
+									<div className='flex items-center gap-2'>
+										<button
+											onClick={handleSave}
+											disabled={userRating === 0 && review.trim() === ''}
+											className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
+											style={{ background: 'var(--netflix-red)' }}
+										>
+											Save
+										</button>
+										{saved && (
+											<span className='text-sm text-green-400 animate-pulse'>
+												Saved!
+											</span>
+										)}
+									</div>
+									{/* Right: external links */}
+									<div className='flex items-center gap-2'>
+										{movie.imdb_id && (
+											<a
+												href={`https://www.imdb.com/title/tt${String(movie.imdb_id).padStart(7, '0')}/`}
+												target='_blank'
+												rel='noopener noreferrer'
+												className={pillClass}
+												style={pillBase}
+											>
+												<svg
+													xmlns='http://www.w3.org/2000/svg'
+													className='w-3.5 h-3.5'
+													fill='none'
+													viewBox='0 0 24 24'
+													stroke='currentColor'
+													strokeWidth={2}
+												>
+													<path
+														strokeLinecap='round'
+														strokeLinejoin='round'
+														d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+													/>
+												</svg>
+												IMDB
+											</a>
+										)}
+										{movie.tmdb_id && (
+											<a
+												href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+												target='_blank'
+												rel='noopener noreferrer'
+												className={pillClass}
+												style={pillBase}
+											>
+												<svg
+													xmlns='http://www.w3.org/2000/svg'
+													className='w-3.5 h-3.5'
+													fill='none'
+													viewBox='0 0 24 24'
+													stroke='currentColor'
+													strokeWidth={2}
+												>
+													<path
+														strokeLinecap='round'
+														strokeLinejoin='round'
+														d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+													/>
+												</svg>
+												TMDB
+											</a>
+										)}
+										<a
+											href={`/movies/${movie.id}`}
+											target='_blank'
+											rel='noopener noreferrer'
+											className={pillClass}
+											style={pillBase}
+										>
+											<svg
+												xmlns='http://www.w3.org/2000/svg'
+												className='w-3.5 h-3.5'
+												fill='none'
+												viewBox='0 0 24 24'
+												stroke='currentColor'
+												strokeWidth={2}
+											>
+												<path
+													strokeLinecap='round'
+													strokeLinejoin='round'
+													d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+												/>
+											</svg>
+											Full page
+										</a>
+									</div>
+								</div>
+							</>
+						)}
 					</div>
 				</div>
 			</div>
