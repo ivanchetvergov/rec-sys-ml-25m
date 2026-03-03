@@ -15,7 +15,7 @@ export default function AdminPage() {
 		}
 		const user = getAuthUser()
 		if (user?.role !== 'admin') {
-			console.log(user?.role)
+			console.log(user?.role, user?.login)
 			router.replace('/')
 			return
 		}

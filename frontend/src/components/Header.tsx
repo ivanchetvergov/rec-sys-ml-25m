@@ -22,8 +22,12 @@ export default function Header() {
 	const [menuOpen, setMenuOpen] = useState(false)
 	// Whether "Switch account" sub-panel is expanded inside the dropdown
 	const [switchOpen, setSwitchOpen] = useState(false)
+	// Search popup
+	const [searchOpen, setSearchOpen] = useState(false)
+	const [searchQuery, setSearchQuery] = useState('')
 
 	const menuRef = useRef<HTMLDivElement>(null)
+	const searchRef = useRef<HTMLDivElement>(null)
 
 	// Sync auth state on mount and on auth-change events
 	useEffect(() => {
@@ -44,12 +48,15 @@ export default function Header() {
 				setMenuOpen(false)
 				setSwitchOpen(false)
 			}
+			if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+				setSearchOpen(false)
+			}
 		}
-		if (menuOpen) {
+		if (menuOpen || searchOpen) {
 			document.addEventListener('mousedown', handleClickOutside)
 		}
 		return () => document.removeEventListener('mousedown', handleClickOutside)
-	}, [menuOpen])
+	}, [menuOpen, searchOpen])
 
 	function handleLogout() {
 		clearAuth()
@@ -107,23 +114,119 @@ export default function Header() {
 
 			{/* ── Right: search + avatar/sign-in ───────────────────────────── */}
 			<div className='flex items-center gap-4'>
-				{/* Search icon */}
-				<button className='text-zinc-300 hover:text-white transition-colors'>
-					<svg
-						xmlns='http://www.w3.org/2000/svg'
-						className='w-5 h-5'
-						fill='none'
-						viewBox='0 0 24 24'
-						stroke='currentColor'
-						strokeWidth={2}
+				{/* Search */}
+				<div className='relative' ref={searchRef}>
+					<button
+						onClick={() => {
+							setSearchOpen(v => !v)
+							setMenuOpen(false)
+							setSwitchOpen(false)
+						}}
+						className='text-zinc-300 hover:text-white transition-colors'
+						aria-label='Search'
 					>
-						<path
-							strokeLinecap='round'
-							strokeLinejoin='round'
-							d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
-						/>
-					</svg>
-				</button>
+						<svg
+							xmlns='http://www.w3.org/2000/svg'
+							className='w-5 h-5'
+							fill='none'
+							viewBox='0 0 24 24'
+							stroke='currentColor'
+							strokeWidth={2}
+						>
+							<path
+								strokeLinecap='round'
+								strokeLinejoin='round'
+								d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
+							/>
+						</svg>
+					</button>
+
+					{/* Search popup */}
+					{searchOpen && (
+						<div
+							className='absolute right-0 mt-3 w-80 rounded-xl overflow-hidden shadow-2xl'
+							style={{
+								background: 'rgba(18,18,18,0.97)',
+								border: '1px solid rgba(255,255,255,0.1)',
+								backdropFilter: 'blur(12px)',
+							}}
+						>
+							{/* Input row */}
+							<div
+								className='flex items-center gap-3 px-4 py-3'
+								style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+							>
+								<svg
+									xmlns='http://www.w3.org/2000/svg'
+									className='w-4 h-4 text-zinc-500 flex-shrink-0'
+									fill='none'
+									viewBox='0 0 24 24'
+									stroke='currentColor'
+									strokeWidth={2}
+								>
+									<path
+										strokeLinecap='round'
+										strokeLinejoin='round'
+										d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
+									/>
+								</svg>
+								<input
+									autoFocus
+									type='text'
+									value={searchQuery}
+									onChange={e => setSearchQuery(e.target.value)}
+									placeholder='Search movies…'
+									className='flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none'
+								/>
+								{searchQuery && (
+									<button
+										onClick={() => setSearchQuery('')}
+										className='text-zinc-500 hover:text-white transition-colors'
+									>
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											className='w-4 h-4'
+											fill='none'
+											viewBox='0 0 24 24'
+											stroke='currentColor'
+											strokeWidth={2.5}
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												d='M6 18L18 6M6 6l12 12'
+											/>
+										</svg>
+									</button>
+								)}
+							</div>
+
+							{/* Results placeholder */}
+							<div className='px-4 py-8 flex flex-col items-center gap-2'>
+								<svg
+									xmlns='http://www.w3.org/2000/svg'
+									className='w-10 h-10 text-zinc-700'
+									fill='none'
+									viewBox='0 0 24 24'
+									stroke='currentColor'
+									strokeWidth={1.2}
+								>
+									<path
+										strokeLinecap='round'
+										strokeLinejoin='round'
+										d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
+									/>
+								</svg>
+								<p className='text-sm text-zinc-500'>
+									Search for movies by title
+								</p>
+								<p className='text-xs text-zinc-600'>
+									Results will appear here
+								</p>
+							</div>
+						</div>
+					)}
+				</div>
 
 				{user ? (
 					/* ── Avatar with dropdown ──────────────────────────────── */
@@ -133,6 +236,7 @@ export default function Header() {
 							onClick={() => {
 								setMenuOpen(v => !v)
 								setSwitchOpen(false)
+								setSearchOpen(false)
 							}}
 							className='w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white focus:outline-none transition-opacity hover:opacity-80 select-none'
 							style={{ background: 'var(--netflix-red)' }}

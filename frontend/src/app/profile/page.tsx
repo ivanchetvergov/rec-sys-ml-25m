@@ -9,8 +9,28 @@ import {
 	removeWatchedDB,
 } from '@/lib/api'
 import { getAuthUser, getToken } from '@/lib/authStore'
-import { getGenreStats } from '@/lib/userStore'
 import { useEffect, useRef, useState } from 'react'
+
+// ── Genre stats utility (pure function, no localStorage) ─────────────────────
+interface GenreStat {
+	genre: string
+	count: number
+}
+function getGenreStats(
+	movieGenres: Record<number, string | null>,
+): GenreStat[] {
+	const counts: Record<string, number> = {}
+	Object.values(movieGenres).forEach(genres => {
+		if (!genres) return
+		genres.split('|').forEach(g => {
+			counts[g] = (counts[g] ?? 0) + 1
+		})
+	})
+	return Object.entries(counts)
+		.map(([genre, count]) => ({ genre, count }))
+		.sort((a, b) => b.count - a.count)
+		.slice(0, 8)
+}
 
 // ── Mini poster card used inside the profile lists ───────────────────────────
 const CARD_GRADIENTS = [
