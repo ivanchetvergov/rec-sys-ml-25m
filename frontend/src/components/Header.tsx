@@ -166,12 +166,16 @@ export default function Header() {
 										<p className='text-sm font-semibold text-white truncate'>
 											{user.login}
 										</p>
-										<p className='text-xs text-zinc-500 truncate'>{user.email}</p>
+										<p className='text-xs text-zinc-500 truncate'>
+											{user.email}
+										</p>
 									</div>
 								</div>
 
 								{/* ── Switch account ────────────────────────────────── */}
-								<div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+								<div
+									style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+								>
 									<button
 										onClick={() => setSwitchOpen(v => !v)}
 										className='w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-zinc-200 hover:bg-white/5 transition-colors'
@@ -240,7 +244,8 @@ export default function Header() {
 												))}
 
 											{/* No other accounts hint */}
-											{accounts.filter(a => a.user.id !== user.id).length === 0 && (
+											{accounts.filter(a => a.user.id !== user.id).length ===
+												0 && (
 												<p className='px-4 py-2 text-xs text-zinc-600'>
 													No other accounts saved
 												</p>
@@ -277,16 +282,49 @@ export default function Header() {
 														/>
 													</svg>
 												</div>
-												<span className='text-sm text-zinc-400'>Add account</span>
+												<span className='text-sm text-zinc-400'>
+													Add account
+												</span>
 											</Link>
 										</div>
 									)}
 								</div>
+								{/* ── Admin Panel (admin only) ──────────────────────── */}
+								{user.role === 'admin' && (
+									<Link
+										href='/admin'
+										onClick={() => {
+											setMenuOpen(false)
+											setSwitchOpen(false)
+										}}
+										className='flex items-center gap-3 px-4 py-3 text-sm text-zinc-200 hover:bg-white/5 transition-colors'
+									>
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											className='w-4 h-4 text-zinc-400'
+											fill='none'
+											viewBox='0 0 24 24'
+											stroke='currentColor'
+											strokeWidth={2}
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												d='M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z'
+											/>
+											<circle cx='12' cy='12' r='3' />
+										</svg>
+										Admin Panel
+									</Link>
+								)}
 
 								{/* ── My profile ────────────────────────────────────── */}
 								<Link
 									href='/profile'
-									onClick={() => { setMenuOpen(false); setSwitchOpen(false) }}
+									onClick={() => {
+										setMenuOpen(false)
+										setSwitchOpen(false)
+									}}
 									className='flex items-center gap-3 px-4 py-3 text-sm text-zinc-200 hover:bg-white/5 transition-colors'
 								>
 									<svg
@@ -345,4 +383,3 @@ export default function Header() {
 		</header>
 	)
 }
-
