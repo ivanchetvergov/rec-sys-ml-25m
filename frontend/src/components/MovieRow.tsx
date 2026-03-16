@@ -10,9 +10,9 @@ interface Props {
     movies: Movie[];
     showRank?: boolean;
     onSelect?: (movie: Movie) => void;
-    trustBadgeByMovieId?: Record<number, string>;
     onRowImpression?: () => void;
     onMovieClick?: (movie: Movie) => void;
+    onMovieExplain?: (movie: Movie) => void;
 }
 
 export function MovieRow({
@@ -21,9 +21,9 @@ export function MovieRow({
     movies,
     showRank = false,
     onSelect,
-    trustBadgeByMovieId,
     onRowImpression,
     onMovieClick,
+    onMovieExplain,
 }: Props) {
     const rowRef = useRef<HTMLDivElement>(null);
     const impressionSentRef = useRef(false);
@@ -78,11 +78,11 @@ export function MovieRow({
                             <MovieCard
                                 movie={movie}
                                 rank={showRank ? i + 1 : undefined}
-                                trustBadge={trustBadgeByMovieId?.[movie.id]}
                                 onSelect={(m) => {
                                     onMovieClick?.(m);
                                     onSelect?.(m);
                                 }}
+                                onExplain={onMovieExplain}
                             />
                         </div>
                     ))}

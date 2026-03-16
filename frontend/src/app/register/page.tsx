@@ -41,10 +41,9 @@ export default function RegisterPage() {
 	}
 
 	const inputClass = (field: string) =>
-		`rounded-lg px-4 py-3 text-sm text-white outline-none transition-all ${
-			error?.field === field
-				? 'border border-red-500 bg-red-950/30'
-				: 'border border-zinc-700 bg-zinc-800/60 focus:border-zinc-400'
+		`rounded-lg px-4 py-3 text-sm text-white outline-none transition-all ${error?.field === field
+			? 'border border-red-500 bg-red-950/30'
+			: 'border border-zinc-700 bg-zinc-800/60 focus:border-zinc-400'
 		}`
 
 	return (

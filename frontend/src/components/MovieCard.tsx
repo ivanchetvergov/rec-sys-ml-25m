@@ -1,7 +1,7 @@
 "use client";
 
 import type { Movie } from "@/lib/api";
-import { addToWatchlist, addWatchedDB, fetchMovieDetails, upsertReview } from "@/lib/api";
+import { addWatchedDB, fetchMovieDetails, upsertReview } from "@/lib/api";
 import { getToken, isLoggedIn } from "@/lib/authStore";
 import { trackKpi } from "@/lib/kpi";
 import { useRouter } from "next/navigation";
@@ -10,8 +10,8 @@ import { useEffect, useState } from "react";
 interface Props {
     movie: Movie;
     rank?: number;
-    trustBadge?: string;
     onSelect?: (movie: Movie) => void;
+    onExplain?: (movie: Movie) => void;
 }
 
 const CARD_GRADIENTS = [
@@ -25,14 +25,14 @@ const CARD_GRADIENTS = [
     "135deg, #373b44 0%, #4286f4 100%",
 ];
 
-export function MovieCard({ movie, rank, trustBadge, onSelect }: Props) {
+export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
     const router = useRouter();
     const genres = movie.genres?.split("|").slice(0, 2) ?? [];
     const gradient = CARD_GRADIENTS[movie.id % CARD_GRADIENTS.length];
 
     const [posterUrl, setPosterUrl] = useState<string | null>(null);
     const [imgError, setImgError] = useState(false);
-    const [busy, setBusy] = useState<"watched" | "watchlist" | "rating" | null>(null);
+    const [busy, setBusy] = useState<"watched" | "rating" | null>(null);
     const [quickNote, setQuickNote] = useState<string | null>(null);
 
     useEffect(() => {
@@ -57,19 +57,6 @@ export function MovieCard({ movie, rank, trustBadge, onSelect }: Props) {
             return null;
         }
         return getToken();
-    };
-
-    const addWatchlistQuick = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const token = requireToken();
-        if (!token) return;
-        setBusy("watchlist");
-        const ok = await addToWatchlist(token, movie);
-        if (ok) {
-            setQuickNote("Added to watchlist");
-            await trackKpi('watchlist_add', 'card_quick_actions', movie.id);
-        }
-        setBusy(null);
     };
 
     const addWatchedQuick = async (e: React.MouseEvent) => {
@@ -167,15 +154,6 @@ export function MovieCard({ movie, rank, trustBadge, onSelect }: Props) {
                         </span>
                     )}
 
-                    {trustBadge && (
-                        <span
-                            className="mt-1 text-[10px] font-bold w-fit px-2 py-0.5 rounded-full"
-                            style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.45)" }}
-                        >
-                            {trustBadge}
-                        </span>
-                    )}
-
                     <div className="mt-2 flex items-center gap-1.5">
                         {[1, 2, 3, 4, 5].map((s) => (
                             <button
@@ -193,14 +171,6 @@ export function MovieCard({ movie, rank, trustBadge, onSelect }: Props) {
 
                     <div className="mt-2 flex items-center gap-2">
                         <button
-                            onClick={addWatchlistQuick}
-                            disabled={busy !== null}
-                            className="text-[10px] px-2 py-1 rounded border text-zinc-200 disabled:opacity-50"
-                            style={{ borderColor: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.1)" }}
-                        >
-                            + Watchlist
-                        </button>
-                        <button
                             onClick={addWatchedQuick}
                             disabled={busy !== null}
                             className="text-[10px] px-2 py-1 rounded border text-zinc-200 disabled:opacity-50"
@@ -208,6 +178,18 @@ export function MovieCard({ movie, rank, trustBadge, onSelect }: Props) {
                         >
                             ✓ Watched
                         </button>
+                        {onExplain && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onExplain(movie);
+                                }}
+                                className="text-[10px] px-2 py-1 rounded border text-cyan-200"
+                                style={{ borderColor: "rgba(34,211,238,0.45)", background: "rgba(34,211,238,0.13)" }}
+                            >
+                                Аналитика
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

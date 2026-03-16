@@ -8,8 +8,8 @@ import type {
 	TopMovie,
 } from '@/lib/api'
 import {
-	fetchAdminKpi,
 	fetchAdminDaily,
+	fetchAdminKpi,
 	fetchAdminOverview,
 	fetchAdminRatingDist,
 	fetchAdminTopMovies,
@@ -383,15 +383,15 @@ export default function AdminPage() {
 												style={
 													chartKey === o.key
 														? {
-																background: o.color + '22',
-																color: o.color,
-																border: `1px solid ${o.color}55`,
-															}
+															background: o.color + '22',
+															color: o.color,
+															border: `1px solid ${o.color}55`,
+														}
 														: {
-																background: 'transparent',
-																color: '#71717a',
-																border: '1px solid rgba(255,255,255,0.07)',
-															}
+															background: 'transparent',
+															color: '#71717a',
+															border: '1px solid rgba(255,255,255,0.07)',
+														}
 												}
 											>
 												{o.label}
@@ -589,13 +589,13 @@ export default function AdminPage() {
 														style={
 															u.role === 'admin'
 																? {
-																		background: 'rgba(229,9,20,0.2)',
-																		color: '#e50914',
-																	}
+																	background: 'rgba(229,9,20,0.2)',
+																	color: '#e50914',
+																}
 																: {
-																		background: 'rgba(255,255,255,0.07)',
-																		color: '#a1a1aa',
-																	}
+																	background: 'rgba(255,255,255,0.07)',
+																	color: '#a1a1aa',
+																}
 														}
 													>
 														{u.role}

@@ -26,8 +26,8 @@ import {
 	getAuthUser,
 	getToken,
 } from '@/lib/authStore'
-import { trackKpi } from '@/lib/kpi'
 import { AvatarIcon } from '@/lib/avatars'
+import { trackKpi } from '@/lib/kpi'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 

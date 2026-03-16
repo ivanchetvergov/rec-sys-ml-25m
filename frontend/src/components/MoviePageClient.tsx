@@ -29,8 +29,24 @@ interface Props {
     movies: Movie[];
 }
 
+type RecommendationSource = 'personal' | 'genre_fallback';
+
+interface RecommendationInsight {
+    headline: string;
+    confidence: number;
+    reasons: string[];
+    stats: Array<{ label: string; value: string }>;
+}
+
+function splitGenres(genres: string | null | undefined): string[] {
+    if (!genres) return [];
+    return genres.split('|').map((g) => g.trim()).filter(Boolean);
+}
+
 export function MoviePageClient({ movies }: Props) {
     const [selected, setSelected] = useState<Movie | null>(null);
+    const [insightMovie, setInsightMovie] = useState<Movie | null>(null);
+    const [insightSource, setInsightSource] = useState<RecommendationSource | null>(null);
 
     // "me" = logged-in user id (null if not authenticated)
     const [meId, setMeId] = useState<number | null>(null);
@@ -49,23 +65,6 @@ export function MoviePageClient({ movies }: Props) {
 
     const hero = movies[0];
     const trending = movies.slice(1, 21);
-
-    const personalTrustBadges = Object.fromEntries(
-        personalMovies.map((m) => {
-            const hot = (m.avg_rating ?? 0) >= 4.3 && (m.num_ratings ?? 0) >= 10000;
-            const inWatchlistGenre = watchlistItems.some((w) => {
-                if (!w.genres || !m.genres) return false;
-                const left = new Set(w.genres.split('|'));
-                return m.genres.split('|').some((g) => left.has(g));
-            });
-            const label = inWatchlistGenre
-                ? 'Matches your watchlist taste'
-                : hot
-                    ? 'Community favorite'
-                    : 'Recommended by ML';
-            return [m.id, label];
-        }),
-    ) as Record<number, string>;
 
     const fallbackGenres = Array.from(
         new Set(
@@ -89,6 +88,89 @@ export function MoviePageClient({ movies }: Props) {
             }),
         )
         .slice(0, 3);
+
+    const openInsight = async (movie: Movie, source: RecommendationSource) => {
+        setInsightMovie(movie);
+        setInsightSource(source);
+        await trackKpi('explanation_open', source, movie.id);
+    };
+
+    const buildRecommendationInsight = (movie: Movie, source: RecommendationSource): RecommendationInsight => {
+        const movieGenres = splitGenres(movie.genres);
+        const watchlistGenreCounts = watchlistItems.reduce<Record<string, number>>((acc, item) => {
+            for (const g of splitGenres(item.genres)) {
+                acc[g] = (acc[g] ?? 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        const matchedGenres = movieGenres.filter((g) => watchlistGenreCounts[g] != null);
+        const genreHits = matchedGenres.reduce((sum, g) => sum + (watchlistGenreCounts[g] ?? 0), 0);
+
+        const score = movie.popularity_score ?? 0;
+        const distribution = movies.map((m) => m.popularity_score ?? 0).sort((a, b) => a - b);
+        const lessOrEqual = distribution.filter((v) => v <= score).length;
+        const popularityPercentile = distribution.length > 0 ? Math.round((lessOrEqual / distribution.length) * 100) : 0;
+
+        const avgRating = movie.avg_rating ?? 0;
+        const ratingVotes = movie.num_ratings ?? 0;
+
+        const genreSignal = matchedGenres.length > 0 ? Math.min(1, matchedGenres.length / 3) : 0.2;
+        const qualitySignal = avgRating > 0 ? Math.min(1, avgRating / 5) : 0.45;
+        const audienceSignal = Math.min(1, Math.log10(ratingVotes + 1) / 5);
+        const popularitySignal = Math.min(1, popularityPercentile / 100);
+        const confidence = Math.round(
+            (genreSignal * 0.35 + qualitySignal * 0.25 + audienceSignal * 0.2 + popularitySignal * 0.2) * 100,
+        );
+
+        const reasons: string[] = [];
+        if (matchedGenres.length > 0) {
+            reasons.push(`Жанровое совпадение с вашим профилем: ${matchedGenres.slice(0, 3).join(', ')}.`);
+            reasons.push(`В вашем watchlist найдено ${genreHits} пересечений по этим жанрам.`);
+        } else {
+            reasons.push('Фильм выбран как расширение вкуса: добавляет новые жанры при сохранении качества подборки.');
+        }
+
+        if (source === 'personal') {
+            reasons.push(
+                personalModel.startsWith('two_stage')
+                    ? 'Персональный ranker учел ваши прошлые оценки, просмотры и скрытые предпочтения.'
+                    : 'Использован персональный fallback из глобально сильных фильмов с похожим профилем вовлечения.',
+            );
+        } else {
+            reasons.push('Рекомендация собрана из популярных фильмов выбранного жанра для быстрого возврата в персонализацию.');
+        }
+
+        if (avgRating > 0) {
+            reasons.push(`Качество по оценкам аудитории: ${avgRating.toFixed(1)} / 5.`);
+        }
+        if (ratingVotes > 0) {
+            reasons.push(`Надежность сигнала: ${ratingVotes.toLocaleString()} пользовательских оценок.`);
+        }
+        if (movie.year) {
+            reasons.push(
+                movie.year >= 2018
+                    ? `Свежесть каталога: фильм ${movie.year} года, чтобы балансировать классику и новинки.`
+                    : `Добавлен как стабильный тайтл ${movie.year} года с долгим жизненным циклом оценок.`,
+            );
+        }
+
+        return {
+            headline: source === 'personal' ? 'Почему это персональная рекомендация' : 'Почему это релевантный стартовый вариант',
+            confidence,
+            reasons,
+            stats: [
+                { label: 'Источник сигнала', value: source === 'personal' ? 'Персональная модель' : 'Жанровый fallback' },
+                { label: 'Популярность', value: `${popularityPercentile}% перцентиль` },
+                { label: 'Рейтинг', value: avgRating > 0 ? `${avgRating.toFixed(1)} / 5` : 'Недостаточно данных' },
+                { label: 'Объем оценок', value: ratingVotes > 0 ? ratingVotes.toLocaleString() : 'Нет данных' },
+                { label: 'Жанровых матчей', value: `${matchedGenres.length}` },
+                { label: 'Год релиза', value: movie.year ? String(movie.year) : 'Не указан' },
+            ],
+        };
+    };
+
+    const insight = insightMovie && insightSource ? buildRecommendationInsight(insightMovie, insightSource) : null;
 
     // Sync meId on mount and on auth-change
     useEffect(() => {
@@ -164,7 +246,6 @@ export function MoviePageClient({ movies }: Props) {
                 <div className="mt-[-60px] relative z-10 pb-6">
                     <MovieRow
                         title="Trending Now"
-                        badge="TOP 20"
                         movies={trending}
                         showRank
                         onSelect={setSelected}
@@ -290,8 +371,8 @@ export function MoviePageClient({ movies }: Props) {
                                 </div>
                                 <MovieRow
                                     title={`Popular in ${fallbackGenre || 'All genres'}`}
-                                    badge="START HERE"
                                     movies={fallbackByGenre}
+                                    onMovieExplain={(m) => openInsight(m, 'genre_fallback')}
                                     onSelect={setSelected}
                                 />
                             </div>
@@ -323,14 +404,75 @@ export function MoviePageClient({ movies }: Props) {
 
                             <MovieRow
                                 title="Recommended for You"
-                                badge={personalModel.startsWith("two_stage") ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
                                 movies={personalMovies}
-                                trustBadgeByMovieId={personalTrustBadges}
                                 onRowImpression={() => trackKpi('rec_impression', 'personal')}
                                 onMovieClick={(m) => trackKpi('rec_click', 'personal', m.id)}
+                                onMovieExplain={(m) => openInsight(m, 'personal')}
                                 onSelect={setSelected}
                             />
                         </>
+                    )}
+
+                    {insightMovie && insight && (
+                        <div
+                            className="rounded-2xl p-5 mt-3"
+                            style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)' }}
+                        >
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h3 className="text-white text-lg font-bold">{insightMovie.title}</h3>
+                                    <p className="text-cyan-100/90 text-sm mt-1">{insight.headline}</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setInsightMovie(null);
+                                        setInsightSource(null);
+                                    }}
+                                    className="text-xs px-2.5 py-1 rounded-full border text-cyan-100"
+                                    style={{ borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(0,0,0,0.2)' }}
+                                >
+                                    Закрыть
+                                </button>
+                            </div>
+
+                            <div className="mt-4">
+                                <div className="flex items-center justify-between text-xs text-cyan-50/90 mb-1.5">
+                                    <span>Уверенность рекомендации</span>
+                                    <span>{insight.confidence}%</span>
+                                </div>
+                                <div className="h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}>
+                                    <div
+                                        className="h-full rounded-full"
+                                        style={{ width: `${insight.confidence}%`, background: 'linear-gradient(90deg, #22d3ee 0%, #14b8a6 100%)' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 mt-4">
+                                {insight.stats.map((s) => (
+                                    <div
+                                        key={s.label}
+                                        className="rounded-xl p-2.5"
+                                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+                                    >
+                                        <p className="text-[11px] text-cyan-50/75">{s.label}</p>
+                                        <p className="text-sm text-white font-semibold mt-0.5">{s.value}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 space-y-2.5">
+                                {insight.reasons.map((reason) => (
+                                    <div
+                                        key={reason}
+                                        className="text-sm text-zinc-100 rounded-lg px-3 py-2"
+                                        style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                    >
+                                        {reason}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </section>
 
