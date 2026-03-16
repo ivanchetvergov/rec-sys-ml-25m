@@ -29,21 +29,12 @@ interface Props {
     movies: Movie[];
 }
 
-type RecommendationSource = 'personal' | 'genre_fallback' | 'mood_layer' | 'mixed' | 'mixed_surprise';
-type MoodKey = 'calm' | 'tense' | 'light' | 'smart';
-
-const MOOD_CONFIG: Record<MoodKey, { label: string; genres: string[] }> = {
-    calm: { label: 'Спокойное', genres: ['Drama', 'Romance', 'Animation', 'Documentary', 'Family'] },
-    tense: { label: 'Напряженное', genres: ['Thriller', 'Crime', 'Mystery', 'Horror', 'War'] },
-    light: { label: 'Легкое', genres: ['Comedy', 'Family', 'Adventure', 'Animation', 'Fantasy'] },
-    smart: { label: 'Умное', genres: ['Sci-Fi', 'Documentary', 'History', 'Biography', 'Drama'] },
-};
+type RecommendationSource = 'personal' | 'genre_fallback';
 
 interface RecommendationInsight {
     headline: string;
     confidence: number;
     stats: Array<{ label: string; value: string }>;
-    surpriseSignal?: string;
     anchors: Array<{
         title: string;
         commonGenres: string[];
@@ -76,8 +67,6 @@ export function MoviePageClient({ movies }: Props) {
     const [personalLoading, setPersonalLoading] = useState(true);
     const [watchedItems, setWatchedItems] = useState<WatchedItem[]>([]);
     const [fallbackGenre, setFallbackGenre] = useState<string>("");
-    const [activeMood, setActiveMood] = useState<MoodKey>('calm');
-    const [surpriseMovieId, setSurpriseMovieId] = useState<number | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const hero = movies[0];
@@ -95,47 +84,6 @@ export function MoviePageClient({ movies }: Props) {
         .filter((m) => !fallbackGenre || (m.genres?.split('|').includes(fallbackGenre) ?? false))
         .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0))
         .slice(0, 12);
-
-    const watchedGenreSet = new Set(
-        watchedItems.flatMap((w) => splitGenres(w.genres)),
-    );
-
-    const moodBase = personalMovies.length > 0 ? personalMovies : movies;
-    const moodGenres = MOOD_CONFIG[activeMood].genres;
-    const moodMovies = moodBase
-        .filter((m) => splitGenres(m.genres).some((g) => moodGenres.includes(g)))
-        .sort((a, b) => ((b.avg_rating ?? 0) * 0.4 + (b.popularity_score ?? 0) * 0.6) - ((a.avg_rating ?? 0) * 0.4 + (a.popularity_score ?? 0) * 0.6))
-        .slice(0, 16);
-
-    const mixedMovies = Array.from(
-        new Map(
-            [...personalMovies.slice(0, 10), ...moodMovies.slice(0, 8), ...trending.slice(0, 8)].map((m) => [m.id, m]),
-        ).values(),
-    ).slice(0, 18);
-
-    const surprisePool = mixedMovies
-        .map((m) => {
-            const mg = splitGenres(m.genres);
-            const knownGenres = mg.filter((g) => watchedGenreSet.has(g));
-            const newGenres = mg.filter((g) => !watchedGenreSet.has(g));
-            const knownRatio = mg.length > 0 ? knownGenres.length / mg.length : 0;
-            const noveltyBoost = newGenres.length > 0 ? Math.min(0.35, newGenres.length * 0.12) : 0;
-            const base = 0.55 * knownRatio + 0.25 * ((m.avg_rating ?? 0) / 5) + 0.2 * Math.min(1, (m.popularity_score ?? 0) / 100);
-            const surpriseScore = Math.round(Math.min(1, base + noveltyBoost) * 100);
-            return {
-                movie: m,
-                newGenres,
-                knownGenres,
-                surpriseScore,
-            };
-        })
-        .filter((x) => x.newGenres.length > 0 || x.knownGenres.length > 0)
-        .sort((a, b) => b.surpriseScore - a.surpriseScore);
-
-    const surprisePick = surprisePool[0] ?? null;
-    const surpriseMovie = surpriseMovieId != null
-        ? mixedMovies.find((m) => m.id === surpriseMovieId) ?? null
-        : null;
 
     const openInsight = async (movie: Movie, source: RecommendationSource) => {
         setInsightMovie(movie);
@@ -199,19 +147,8 @@ export function MoviePageClient({ movies }: Props) {
             (historySignal * 0.6 + genreSignal * 0.25 + popularitySignal * 0.15) * 100,
         );
 
-        const noveltyGenres = movieGenres.filter((g) => !watchedGenreCounts[g]);
-        const surpriseSignal = `${Math.max(meanSimilarity, Math.round(genreSignal * 100))}% совпадение + ${noveltyGenres.length} новый жанр`;
-
-        const headlineMap: Record<RecommendationSource, string> = {
-            personal: 'Почему это персональная рекомендация',
-            genre_fallback: 'Почему это релевантный стартовый вариант',
-            mood_layer: `Почему в настроении «${MOOD_CONFIG[activeMood].label}»`,
-            mixed: 'Почему это в блоке Mixed',
-            mixed_surprise: 'Почему это ваш Surprise me',
-        };
-
         return {
-            headline: headlineMap[source],
+            headline: source === 'personal' ? 'Почему это персональная рекомендация' : 'Почему это релевантный стартовый вариант',
             confidence,
             stats: [
                 { label: 'Источник сигнала', value: source === 'personal' ? 'Персональная модель' : 'Жанровый fallback' },
@@ -220,9 +157,7 @@ export function MoviePageClient({ movies }: Props) {
                 { label: 'Жанровые матчи', value: `${matchedGenres.length} (${movieGenreCoverage}% жанров этого фильма)` },
                 { label: 'Покрытие вашего жанрового профиля', value: `${genreCoverage}%` },
                 { label: 'Всего жанровых пересечений', value: `${genreHits}` },
-                ...(source === 'mixed_surprise' ? [{ label: 'Surprise сигнал', value: surpriseSignal }] : []),
             ],
-            surpriseSignal,
             anchors,
         };
     };
@@ -444,87 +379,6 @@ export function MoviePageClient({ movies }: Props) {
                                 onMovieExplain={(m) => openInsight(m, 'personal')}
                                 onSelect={setSelected}
                             />
-
-                            <section className="mb-8">
-                                <div className="flex items-center justify-between gap-3 mb-3">
-                                    <h3 className="text-white font-bold text-lg">Mood Layer</h3>
-                                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                                        {(Object.keys(MOOD_CONFIG) as MoodKey[]).map((k) => (
-                                            <button
-                                                key={k}
-                                                onClick={() => setActiveMood(k)}
-                                                className="text-xs px-3 py-1.5 rounded-full border whitespace-nowrap transition-colors"
-                                                style={{
-                                                    borderColor: activeMood === k ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.18)',
-                                                    color: activeMood === k ? '#f4f4f5' : '#a1a1aa',
-                                                    background: activeMood === k ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.04)',
-                                                }}
-                                            >
-                                                {MOOD_CONFIG[k].label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <MovieRow
-                                    title={`Сейчас: ${MOOD_CONFIG[activeMood].label}`}
-                                    movies={moodMovies}
-                                    onMovieExplain={(m) => openInsight(m, 'mood_layer')}
-                                    onSelect={setSelected}
-                                />
-                            </section>
-
-                            <section className="mb-4">
-                                <div className="flex items-center justify-between gap-3 mb-3">
-                                    <h3 className="text-white font-bold text-lg">Mixed</h3>
-                                    <button
-                                        onClick={async () => {
-                                            if (!surprisePick) return;
-                                            setSurpriseMovieId(surprisePick.movie.id);
-                                            await trackKpi('surprise_click', 'mixed', surprisePick.movie.id);
-                                        }}
-                                        className="text-xs px-3 py-1.5 rounded-full border text-zinc-200"
-                                        style={{ borderColor: 'rgba(255,255,255,0.24)', background: 'rgba(255,255,255,0.08)' }}
-                                    >
-                                        Surprise me
-                                    </button>
-                                </div>
-
-                                {surprisePick && surpriseMovie && (
-                                    <div
-                                        className="rounded-xl p-3 mb-3"
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)' }}
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm text-zinc-300">Ваш surprise:</p>
-                                                <button
-                                                    onClick={() => setSelected(surpriseMovie)}
-                                                    className="text-white font-semibold text-base text-left hover:underline"
-                                                >
-                                                    {surpriseMovie.title}
-                                                </button>
-                                                <p className="text-xs text-zinc-400 mt-0.5">
-                                                    {`${surprisePick.surpriseScore}% совпадение + ${surprisePick.newGenres.length} новый жанр`}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() => openInsight(surpriseMovie, 'mixed_surprise')}
-                                                className="text-xs px-2.5 py-1 rounded-full border text-zinc-200"
-                                                style={{ borderColor: 'rgba(255,255,255,0.25)', background: 'rgba(0,0,0,0.24)' }}
-                                            >
-                                                exp
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <MovieRow
-                                    title="Mixed picks"
-                                    movies={mixedMovies}
-                                    onMovieExplain={(m) => openInsight(m, 'mixed')}
-                                    onSelect={setSelected}
-                                />
-                            </section>
                         </>
                     )}
 
@@ -562,15 +416,6 @@ export function MoviePageClient({ movies }: Props) {
                                     />
                                 </div>
                             </div>
-
-                            {insight.surpriseSignal && insightSource === 'mixed_surprise' && (
-                                <div
-                                    className="mt-4 rounded-lg px-3 py-2 text-sm text-zinc-100"
-                                    style={{ background: 'rgba(0,0,0,0.24)', border: '1px solid rgba(255,255,255,0.12)' }}
-                                >
-                                    {insight.surpriseSignal}
-                                </div>
-                            )}
 
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 mt-4">
                                 {insight.stats.map((s) => (
