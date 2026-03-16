@@ -31,7 +31,7 @@ export default function RegisterPage() {
 		try {
 			const data = await registerUser(username, email, password)
 			setAuth(data.access_token, data.user)
-			router.push('/')
+			router.push('/onboarding')
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : 'Registration failed'
 			setError({ message: msg })

@@ -2,7 +2,7 @@
 
 import { MovieCard } from "@/components/MovieCard";
 import type { Movie } from "@/lib/api";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 interface Props {
     title: string;
@@ -10,10 +10,29 @@ interface Props {
     movies: Movie[];
     showRank?: boolean;
     onSelect?: (movie: Movie) => void;
+    trustBadgeByMovieId?: Record<number, string>;
+    onRowImpression?: () => void;
+    onMovieClick?: (movie: Movie) => void;
 }
 
-export function MovieRow({ title, badge, movies, showRank = false, onSelect }: Props) {
+export function MovieRow({
+    title,
+    badge,
+    movies,
+    showRank = false,
+    onSelect,
+    trustBadgeByMovieId,
+    onRowImpression,
+    onMovieClick,
+}: Props) {
     const rowRef = useRef<HTMLDivElement>(null);
+    const impressionSentRef = useRef(false);
+
+    useEffect(() => {
+        if (!onRowImpression || impressionSentRef.current || movies.length === 0) return;
+        impressionSentRef.current = true;
+        onRowImpression();
+    }, [movies.length, onRowImpression]);
 
     const scroll = (direction: "left" | "right") => {
         if (!rowRef.current) return;
@@ -56,7 +75,15 @@ export function MovieRow({ title, badge, movies, showRank = false, onSelect }: P
                 >
                     {movies.map((movie, i) => (
                         <div key={movie.id} style={{ scrollSnapAlign: "start", flexShrink: 0 }}>
-                            <MovieCard movie={movie} rank={showRank ? i + 1 : undefined} onSelect={onSelect} />
+                            <MovieCard
+                                movie={movie}
+                                rank={showRank ? i + 1 : undefined}
+                                trustBadge={trustBadgeByMovieId?.[movie.id]}
+                                onSelect={(m) => {
+                                    onMovieClick?.(m);
+                                    onSelect?.(m);
+                                }}
+                            />
                         </div>
                     ))}
                 </div>

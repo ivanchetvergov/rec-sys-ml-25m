@@ -17,6 +17,7 @@ venv/
 env/
 ENV/
 recsys_env/
+catboost_info/
 
 # Type checking / linting
 .mypy_cache/

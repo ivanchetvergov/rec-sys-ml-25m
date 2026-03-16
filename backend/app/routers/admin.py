@@ -173,3 +173,55 @@ def stats_users(
     """, (limit, offset))
     total = _scalar("SELECT COUNT(*) FROM users")
     return {"total": total, "users": users}
+
+
+@router.get("/stats/kpi")
+def stats_kpi(
+    days: int = Query(7, ge=1, le=90),
+    _admin: dict = Depends(require_admin),
+):
+    """Product KPI metrics for recommendation block quality and engagement."""
+    row = _query(
+        """
+        SELECT
+            COUNT(*) FILTER (
+                WHERE event_type = 'rec_impression'
+                  AND COALESCE(block, '') = 'personal'
+            )::float AS rec_impressions,
+            COUNT(*) FILTER (
+                WHERE event_type = 'rec_click'
+                  AND COALESCE(block, '') = 'personal'
+            )::float AS rec_clicks,
+            COUNT(DISTINCT session_id) FILTER (
+                WHERE event_type = 'session_start'
+            )::float AS sessions_started,
+            COUNT(DISTINCT session_id) FILTER (
+                WHERE event_type IN ('rating_submit', 'review_submit')
+            )::float AS sessions_with_feedback
+        FROM rec_events
+        WHERE created_at >= now() - (%s || ' days')::interval
+        """,
+        (days,),
+    )
+    agg = row[0] if row else {}
+    impressions = float(agg.get("rec_impressions") or 0.0)
+    clicks = float(agg.get("rec_clicks") or 0.0)
+    sessions_started = float(agg.get("sessions_started") or 0.0)
+    sessions_with_feedback = float(agg.get("sessions_with_feedback") or 0.0)
+
+    ctr = (100.0 * clicks / impressions) if impressions > 0 else 0.0
+    feedback_session_share = (
+        100.0 * sessions_with_feedback / sessions_started
+        if sessions_started > 0
+        else 0.0
+    )
+
+    return {
+        "days": days,
+        "rec_ctr_percent": round(ctr, 2),
+        "feedback_session_share_percent": round(feedback_session_share, 2),
+        "rec_impressions": int(impressions),
+        "rec_clicks": int(clicks),
+        "sessions_started": int(sessions_started),
+        "sessions_with_feedback": int(sessions_with_feedback),
+    }

@@ -665,6 +665,16 @@ export interface AdminOverview {
 	active_today: number
 }
 
+export interface AdminKpi {
+	days: number
+	rec_ctr_percent: number
+	feedback_session_share_percent: number
+	rec_impressions: number
+	rec_clicks: number
+	sessions_started: number
+	sessions_with_feedback: number
+}
+
 export interface DailyActivity {
 	date: string
 	new_users: number
@@ -758,4 +768,46 @@ export async function fetchAdminUsers(
 	)
 	if (!r.ok) return { total: 0, users: [] }
 	return r.json()
+}
+
+export async function fetchAdminKpi(
+	token: string,
+	days = 7,
+): Promise<AdminKpi | null> {
+	const r = await fetch(`${API_URL}/api/admin/stats/kpi?days=${days}`, {
+		headers: adminH(token),
+		cache: 'no-store',
+	})
+	if (!r.ok) return null
+	return r.json()
+}
+
+export async function trackKpiEvent(
+	sessionId: string,
+	eventType: string,
+	block?: string,
+	movieId?: number,
+	token?: string,
+): Promise<void> {
+	try {
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json',
+		}
+		if (token) {
+			headers.Authorization = `Bearer ${token}`
+		}
+		await fetch(`${API_URL}/api/metrics/event`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				session_id: sessionId,
+				event_type: eventType,
+				block,
+				movie_id: movieId,
+			}),
+			cache: 'no-store',
+		})
+	} catch {
+		// best-effort analytics only
+	}
 }

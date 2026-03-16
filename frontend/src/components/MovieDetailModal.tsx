@@ -10,6 +10,7 @@ import {
 	upsertReview,
 } from '@/lib/api'
 import { getToken, isLoggedIn } from '@/lib/authStore'
+import { trackKpi } from '@/lib/kpi'
 import { useCallback, useEffect, useState } from 'react'
 
 interface Props {
@@ -147,6 +148,10 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 
 		setUserRating(savedReview.rating)
 		setReview(savedReview.review_text ?? '')
+		await trackKpi('rating_submit', 'movie_modal', movie.id)
+		if ((savedReview.review_text ?? '').trim()) {
+			await trackKpi('review_submit', 'movie_modal', movie.id)
+		}
 		setWatched(true)
 		setInWatchlist(false)
 		setIsSaving(false)

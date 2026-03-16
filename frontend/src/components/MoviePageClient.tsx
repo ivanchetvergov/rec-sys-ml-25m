@@ -4,9 +4,10 @@ import { CatalogSection } from "@/components/CatalogSection";
 import { HeroSection } from "@/components/HeroSection";
 import { MovieDetailModal } from "@/components/MovieDetailModal";
 import { MovieRow } from "@/components/MovieRow";
-import type { Movie, PersonalRec } from "@/lib/api";
-import { fetchPersonalRecs } from "@/lib/api";
-import { getAuthUser, isLoggedIn } from "@/lib/authStore";
+import type { Movie, PersonalRec, WatchlistItem } from "@/lib/api";
+import { fetchPersonalRecs, fetchWatchlist } from "@/lib/api";
+import { getAuthUser, getToken, isLoggedIn } from "@/lib/authStore";
+import { ensureKpiSessionStarted, trackKpi } from "@/lib/kpi";
 import { useEffect, useRef, useState } from "react";
 
 /** Map a PersonalRec to the Movie shape expected by MovieRow / MovieCard. */
@@ -42,10 +43,52 @@ export function MoviePageClient({ movies }: Props) {
     const [personalMovies, setPersonalMovies] = useState<Movie[]>([]);
     const [personalModel, setPersonalModel] = useState<string>("");
     const [personalLoading, setPersonalLoading] = useState(true);
+    const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
+    const [fallbackGenre, setFallbackGenre] = useState<string>("");
     const inputRef = useRef<HTMLInputElement>(null);
 
     const hero = movies[0];
     const trending = movies.slice(1, 21);
+
+    const personalTrustBadges = Object.fromEntries(
+        personalMovies.map((m) => {
+            const hot = (m.avg_rating ?? 0) >= 4.3 && (m.num_ratings ?? 0) >= 10000;
+            const inWatchlistGenre = watchlistItems.some((w) => {
+                if (!w.genres || !m.genres) return false;
+                const left = new Set(w.genres.split('|'));
+                return m.genres.split('|').some((g) => left.has(g));
+            });
+            const label = inWatchlistGenre
+                ? 'Matches your watchlist taste'
+                : hot
+                    ? 'Community favorite'
+                    : 'Recommended by ML';
+            return [m.id, label];
+        }),
+    ) as Record<number, string>;
+
+    const fallbackGenres = Array.from(
+        new Set(
+            movies
+                .flatMap((m) => (m.genres ? m.genres.split('|') : []))
+                .filter(Boolean),
+        ),
+    ).slice(0, 8);
+
+    const fallbackByGenre = movies
+        .filter((m) => !fallbackGenre || (m.genres?.split('|').includes(fallbackGenre) ?? false))
+        .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0))
+        .slice(0, 12);
+
+    const watchlistReactivationPicks = personalMovies
+        .filter((m) =>
+            watchlistItems.some((w) => {
+                if (!m.genres || !w.genres) return false;
+                const mg = new Set(m.genres.split('|'));
+                return w.genres.split('|').some((g) => mg.has(g));
+            }),
+        )
+        .slice(0, 3);
 
     // Sync meId on mount and on auth-change
     useEffect(() => {
@@ -60,6 +103,16 @@ export function MoviePageClient({ movies }: Props) {
 
     // Active user id for recommendations
     const userId = useMe ? meId : customId;
+
+    useEffect(() => {
+        ensureKpiSessionStarted();
+    }, []);
+
+    useEffect(() => {
+        if (!fallbackGenre && fallbackGenres.length > 0) {
+            setFallbackGenre(fallbackGenres[0]);
+        }
+    }, [fallbackGenre, fallbackGenres]);
 
     // Fetch personal recs whenever effective userId changes
     useEffect(() => {
@@ -82,6 +135,15 @@ export function MoviePageClient({ movies }: Props) {
             })
             .finally(() => setPersonalLoading(false));
     }, [userId]);
+
+    useEffect(() => {
+        const token = getToken();
+        if (!token) {
+            setWatchlistItems([]);
+            return;
+        }
+        fetchWatchlist(token).then(setWatchlistItems);
+    }, [meId]);
 
     const applyCustom = () => {
         const v = parseInt(customInput, 10);
@@ -179,13 +241,96 @@ export function MoviePageClient({ movies }: Props) {
                         <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">
                             Loading recommendations…
                         </div>
+                    ) : personalMovies.length === 0 ? (
+                        <div className="flex flex-col gap-6">
+                            <div
+                                className="rounded-2xl p-5"
+                                style={{
+                                    background: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                }}
+                            >
+                                <h3 className="text-white text-lg font-bold">No personal picks yet</h3>
+                                <p className="text-zinc-400 text-sm mt-1">
+                                    Оцените 3 фильма для персонализации, и рекомендации станут заметно точнее.
+                                </p>
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {trending.slice(0, 3).map((m) => (
+                                        <button
+                                            key={m.id}
+                                            onClick={() => setSelected(m)}
+                                            className="px-3 py-1.5 text-xs rounded-full border text-zinc-200"
+                                            style={{ borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}
+                                        >
+                                            Rate {m.title}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-sm font-bold text-white">Popular by genre</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {fallbackGenres.map((g) => (
+                                            <button
+                                                key={g}
+                                                onClick={() => setFallbackGenre(g)}
+                                                className="text-xs px-2.5 py-1 rounded-full border"
+                                                style={{
+                                                    borderColor: fallbackGenre === g ? 'rgba(229,9,20,0.5)' : 'rgba(255,255,255,0.2)',
+                                                    color: fallbackGenre === g ? '#f87171' : '#a1a1aa',
+                                                    background: fallbackGenre === g ? 'rgba(229,9,20,0.12)' : 'transparent',
+                                                }}
+                                            >
+                                                {g}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <MovieRow
+                                    title={`Popular in ${fallbackGenre || 'All genres'}`}
+                                    badge="START HERE"
+                                    movies={fallbackByGenre}
+                                    onSelect={setSelected}
+                                />
+                            </div>
+                        </div>
                     ) : (
-                        <MovieRow
-                            title="Recommended for You"
-                            badge={personalModel.startsWith("two_stage") ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
-                            movies={personalMovies}
-                            onSelect={setSelected}
-                        />
+                        <>
+                            {watchlistItems.length > 0 && (
+                                <div
+                                    className="rounded-2xl p-4 mb-4"
+                                    style={{ background: 'rgba(16,185,129,0.09)', border: '1px solid rgba(16,185,129,0.25)' }}
+                                >
+                                    <p className="text-sm text-emerald-300 font-semibold">
+                                        У вас {watchlistItems.length} фильмов в watchlist. Вот 3 наиболее релевантных сегодня:
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {(watchlistReactivationPicks.length > 0 ? watchlistReactivationPicks : personalMovies.slice(0, 3)).map((m) => (
+                                            <button
+                                                key={m.id}
+                                                onClick={() => setSelected(m)}
+                                                className="text-xs px-2.5 py-1.5 rounded-full border text-zinc-200"
+                                                style={{ borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)' }}
+                                            >
+                                                {m.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <MovieRow
+                                title="Recommended for You"
+                                badge={personalModel.startsWith("two_stage") ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
+                                movies={personalMovies}
+                                trustBadgeByMovieId={personalTrustBadges}
+                                onRowImpression={() => trackKpi('rec_impression', 'personal')}
+                                onMovieClick={(m) => trackKpi('rec_click', 'personal', m.id)}
+                                onSelect={setSelected}
+                            />
+                        </>
                     )}
                 </section>
 

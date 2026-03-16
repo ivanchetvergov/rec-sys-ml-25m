@@ -26,6 +26,7 @@ import {
 	getAuthUser,
 	getToken,
 } from '@/lib/authStore'
+import { trackKpi } from '@/lib/kpi'
 import { AvatarIcon } from '@/lib/avatars'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -267,6 +268,10 @@ export default function MoviePageInteractive({ movie }: Props) {
 
 		setUserRating(savedReview.rating)
 		setReview(savedReview.review_text ?? '')
+		await trackKpi('rating_submit', 'movie_page', movie.id)
+		if ((savedReview.review_text ?? '').trim()) {
+			await trackKpi('review_submit', 'movie_page', movie.id)
+		}
 		setWatched(true)
 		setInWatchlist(false)
 		fetchMovieReviews(movie.id, 30).then(setCommunityReviews)

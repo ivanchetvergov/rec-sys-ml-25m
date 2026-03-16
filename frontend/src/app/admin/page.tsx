@@ -8,6 +8,7 @@ import type {
 	TopMovie,
 } from '@/lib/api'
 import {
+	fetchAdminKpi,
 	fetchAdminDaily,
 	fetchAdminOverview,
 	fetchAdminRatingDist,
@@ -188,6 +189,12 @@ export default function AdminPage() {
 
 	// Data states
 	const [overview, setOverview] = useState<AdminOverview | null>(null)
+	const [kpi, setKpi] = useState<{
+		rec_ctr_percent: number
+		feedback_session_share_percent: number
+		rec_impressions: number
+		sessions_started: number
+	} | null>(null)
 	const [daily, setDaily] = useState<DailyActivity[]>([])
 	const [topMovies, setTopMovies] = useState<{
 		most_watched: TopMovie[]
@@ -224,13 +231,15 @@ export default function AdminPage() {
 		setLoading(true)
 		Promise.all([
 			fetchAdminOverview(token),
+			fetchAdminKpi(token, 7),
 			fetchAdminDaily(token, chartDays),
 			fetchAdminTopMovies(token),
 			fetchAdminRatingDist(token),
 			fetchAdminUsers(token, 50, 0),
 		])
-			.then(([ov, dl, tm, rd, us]) => {
+			.then(([ov, kp, dl, tm, rd, us]) => {
 				setOverview(ov)
+				setKpi(kp)
 				setDaily(dl)
 				setTopMovies(tm)
 				setRatingDist(rd)
@@ -330,6 +339,21 @@ export default function AdminPage() {
 								value={overview?.total_watchlist ?? 0}
 								sub={`${overview?.active_today ?? 0} active today`}
 								accent='#10b981'
+							/>
+						</div>
+
+						<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+							<StatCard
+								label='KPI: Rec CTR (7d)'
+								value={`${(kpi?.rec_ctr_percent ?? 0).toFixed(2)}%`}
+								sub={`${kpi?.rec_impressions ?? 0} impressions`}
+								accent='#60a5fa'
+							/>
+							<StatCard
+								label='KPI: Sessions With Feedback (7d)'
+								value={`${(kpi?.feedback_session_share_percent ?? 0).toFixed(2)}%`}
+								sub={`${kpi?.sessions_started ?? 0} sessions`}
+								accent='#22c55e'
 							/>
 						</div>
 
