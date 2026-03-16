@@ -103,10 +103,27 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
                     />
                 )}
 
+                {onExplain && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onExplain(movie);
+                        }}
+                        className="absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full border opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-200"
+                        style={{
+                            borderColor: "rgba(255,255,255,0.24)",
+                            background: "rgba(0,0,0,0.62)",
+                            color: "#e4e4e7",
+                        }}
+                    >
+                        exp
+                    </button>
+                )}
+
                 {/* Rank badge */}
                 {rank != null && (
                     <span
-                        className="absolute top-2 left-2 text-xs font-bold px-1.5 py-0.5 rounded-md z-10"
+                        className="absolute top-10 left-2 text-xs font-bold px-1.5 py-0.5 rounded-md z-10"
                         style={{ background: "rgba(0,0,0,0.75)", color: "#e5e5e5" }}
                     >
                         #{rank}
@@ -154,21 +171,6 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
                                 ★
                             </button>
                         ))}
-                    </div>
-
-                    <div className="mt-2 flex items-center gap-2">
-                        {onExplain && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onExplain(movie);
-                                }}
-                                className="text-[10px] px-2 py-1 rounded border text-cyan-200"
-                                style={{ borderColor: "rgba(34,211,238,0.45)", background: "rgba(34,211,238,0.13)" }}
-                            >
-                                Аналитика
-                            </button>
-                        )}
                     </div>
                 </div>
             </div>

@@ -34,7 +34,6 @@ type RecommendationSource = 'personal' | 'genre_fallback';
 interface RecommendationInsight {
     headline: string;
     confidence: number;
-    reasons: string[];
     stats: Array<{ label: string; value: string }>;
     anchors: Array<{
         title: string;
@@ -122,7 +121,6 @@ export function MoviePageClient({ movies }: Props) {
             .sort((a, b) => b.similarity - a.similarity)
             .slice(0, 3);
 
-        const anchorTitles = anchors.map((a) => a.title);
         const matchedGenres = movieGenres.filter((g) => watchedGenreCounts[g] != null);
         const genreHits = matchedGenres.reduce((sum, g) => sum + (watchedGenreCounts[g] ?? 0), 0);
         const topSimilarity = anchors[0]?.similarity ?? 0;
@@ -131,9 +129,16 @@ export function MoviePageClient({ movies }: Props) {
             : 0;
 
         const score = movie.popularity_score ?? 0;
-        const distribution = movies.map((m) => m.popularity_score ?? 0).sort((a, b) => a - b);
-        const lessOrEqual = distribution.filter((v) => v <= score).length;
-        const popularityPercentile = distribution.length > 0 ? Math.round((lessOrEqual / distribution.length) * 100) : 0;
+        const popularityScores = movies.map((m) => m.popularity_score ?? 0);
+        const lessOrEqual = popularityScores.filter((v) => v <= score).length;
+        const popularityPercentile = popularityScores.length > 0 ? Math.round((lessOrEqual / popularityScores.length) * 100) : 0;
+        const watchedUniqueGenres = Object.keys(watchedGenreCounts).length;
+        const genreCoverage = watchedUniqueGenres > 0
+            ? Math.round((matchedGenres.length / watchedUniqueGenres) * 100)
+            : 0;
+        const movieGenreCoverage = movieGenres.length > 0
+            ? Math.round((matchedGenres.length / movieGenres.length) * 100)
+            : 0;
 
         const genreSignal = matchedGenres.length > 0 ? Math.min(1, matchedGenres.length / 3) : 0.2;
         const historySignal = Math.min(1, meanSimilarity / 100);
@@ -142,34 +147,16 @@ export function MoviePageClient({ movies }: Props) {
             (historySignal * 0.6 + genreSignal * 0.25 + popularitySignal * 0.15) * 100,
         );
 
-        const reasons: string[] = [];
-        if (anchorTitles.length > 0) {
-            reasons.push(`Вы уже смотрели похожие фильмы: ${anchorTitles.join(', ')}.`);
-            reasons.push(`Основа похожести: общие жанры (${matchedGenres.slice(0, 4).join(', ')}), плюс близость по эпохе выпуска.`);
-            reasons.push(`В вашей истории найдено ${genreHits} пересечений по жанрам.`);
-        } else if (matchedGenres.length > 0) {
-            reasons.push(`Есть совпадение с вашими прошлыми просмотрами по жанрам: ${matchedGenres.slice(0, 3).join(', ')}.`);
-        } else {
-            reasons.push('Фильм выбран как расширение вкуса: добавляет новые жанры при сохранении качества подборки.');
-        }
-
-        if (source === 'personal') {
-            reasons.push('Рекомендация опирается на ваши реальные просмотры, а не на случайный популярный список.');
-        } else {
-            reasons.push('Это стартовая рекомендация по жанровой релевантности до накопления персональной истории.');
-        }
-
         return {
             headline: source === 'personal' ? 'Почему это персональная рекомендация' : 'Почему это релевантный стартовый вариант',
             confidence,
-            reasons,
             stats: [
                 { label: 'Источник сигнала', value: source === 'personal' ? 'Персональная модель' : 'Жанровый fallback' },
                 { label: 'Сходство с историей', value: anchors.length > 0 ? `${meanSimilarity}% (топ: ${topSimilarity}%)` : 'Недостаточно данных' },
-                { label: 'Популярность (перцентиль)', value: ` ${popularityPercentile}%` },
-                { label: 'Опорные просмотренные фильмы', value: anchorTitles.length > 0 ? anchorTitles.join(', ') : 'Не найдены' },
-                { label: 'Жанровых матчей', value: `${matchedGenres.length}` },
-                { label: 'Модель', value: source === 'personal' && personalModel ? personalModel : 'genre_fallback' },
+                { label: 'Популярность (перцентиль)', value: `${popularityPercentile}%` },
+                { label: 'Жанровые матчи', value: `${matchedGenres.length} (${movieGenreCoverage}% жанров этого фильма)` },
+                { label: 'Покрытие вашего жанрового профиля', value: `${genreCoverage}%` },
+                { label: 'Всего жанровых пересечений', value: `${genreHits}` },
             ],
             anchors,
         };
@@ -398,19 +385,19 @@ export function MoviePageClient({ movies }: Props) {
                     {insightMovie && insight && (
                         <div
                             className="rounded-2xl p-5 mt-3"
-                            style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)' }}
                         >
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h3 className="text-white text-lg font-bold">{insightMovie.title}</h3>
-                                    <p className="text-cyan-100/90 text-sm mt-1">{insight.headline}</p>
+                                    <p className="text-zinc-300 text-sm mt-1">{insight.headline}</p>
                                 </div>
                                 <button
                                     onClick={() => {
                                         setInsightMovie(null);
                                         setInsightSource(null);
                                     }}
-                                    className="text-xs px-2.5 py-1 rounded-full border text-cyan-100"
+                                    className="text-xs px-2.5 py-1 rounded-full border text-zinc-200"
                                     style={{ borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(0,0,0,0.2)' }}
                                 >
                                     Закрыть
@@ -418,14 +405,14 @@ export function MoviePageClient({ movies }: Props) {
                             </div>
 
                             <div className="mt-4">
-                                <div className="flex items-center justify-between text-xs text-cyan-50/90 mb-1.5">
+                                <div className="flex items-center justify-between text-xs text-zinc-300 mb-1.5">
                                     <span>Уверенность рекомендации</span>
                                     <span>{insight.confidence}%</span>
                                 </div>
                                 <div className="h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }}>
                                     <div
                                         className="h-full rounded-full"
-                                        style={{ width: `${insight.confidence}%`, background: 'linear-gradient(90deg, #22d3ee 0%, #14b8a6 100%)' }}
+                                        style={{ width: `${insight.confidence}%`, background: 'linear-gradient(90deg, #a1a1aa 0%, #52525b 100%)' }}
                                     />
                                 </div>
                             </div>
@@ -437,20 +424,8 @@ export function MoviePageClient({ movies }: Props) {
                                         className="rounded-xl p-2.5"
                                         style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
                                     >
-                                        <p className="text-[11px] text-cyan-50/75">{s.label}</p>
+                                        <p className="text-[11px] text-zinc-400">{s.label}</p>
                                         <p className="text-sm text-white font-semibold mt-0.5">{s.value}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-4 space-y-2.5">
-                                {insight.reasons.map((reason) => (
-                                    <div
-                                        key={reason}
-                                        className="text-sm text-zinc-100 rounded-lg px-3 py-2"
-                                        style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}
-                                    >
-                                        {reason}
                                     </div>
                                 ))}
                             </div>
@@ -467,7 +442,7 @@ export function MoviePageClient({ movies }: Props) {
                                             >
                                                 <div className="flex items-center justify-between gap-3">
                                                     <p className="text-sm text-white font-semibold">{a.title}</p>
-                                                    <span className="text-xs text-cyan-200">Сходство: {a.similarity}%</span>
+                                                    <span className="text-xs text-zinc-300">Сходство: {a.similarity}%</span>
                                                 </div>
                                                 <p className="text-xs text-zinc-300 mt-1">
                                                     Общие жанры: {a.commonGenres.join(', ')}
