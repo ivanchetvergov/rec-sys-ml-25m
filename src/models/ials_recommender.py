@@ -221,6 +221,92 @@ class ImplicitALSRecommender:
 
         return result_ids, result_scores
 
+    def recommend_with_recalculated_user(
+        self,
+        user_id: int,
+        interaction_strengths: Dict[int, float],
+        n: int = 500,
+        exclude_items: Optional[Set[int]] = None,
+        filter_already_liked: bool = True,
+        include_training_history: bool = True,
+    ) -> Tuple[List[int], List[float]]:
+        """Top-N recommendations using online user fold-in (fixed item factors).
+
+        This method keeps learned item factors unchanged and recalculates a user
+        representation from a provided interaction vector at inference time.
+        It enables near-live personalization without full model retraining.
+
+        Args:
+            user_id: Original user ID.
+            interaction_strengths: Mapping ``movie_id -> strength`` where strength
+                is a raw rating/engagement signal (e.g. 1..5). Values are converted
+                into confidence space via the fitted confidence mode.
+            n: Number of candidates.
+            exclude_items: Item IDs to exclude from final results.
+            filter_already_liked: Whether to hide interacted items from the
+                provided online vector.
+            include_training_history: If True and user exists in training,
+                combines train interactions with online interactions.
+
+        Returns:
+            (item_ids, scores) ordered best-first.
+        """
+        self._check_fitted()
+
+        valid_items = []
+        valid_strengths = []
+        for movie_id, strength in interaction_strengths.items():
+            iid = int(movie_id)
+            if iid not in self.item_id_map_:
+                continue
+            valid_items.append(iid)
+            valid_strengths.append(float(strength))
+
+        if not valid_items and not (
+            include_training_history and int(user_id) in self.user_id_map_
+        ):
+            return [], []
+
+        user_row: Optional[csr_matrix] = None
+        if include_training_history and int(user_id) in self.user_id_map_:
+            user_idx = self.user_id_map_[int(user_id)]
+            user_row = self._user_item_matrix[user_idx].copy()
+        else:
+            user_row = csr_matrix((1, self.n_items_), dtype=np.float32)
+
+        if valid_items:
+            cols = np.array([self.item_id_map_[iid] for iid in valid_items], dtype=np.int32)
+            strengths_arr = np.array(valid_strengths, dtype=np.float32)
+            conf = self._compute_confidence(strengths_arr)
+            online_row = csr_matrix(
+                (conf, (np.zeros(len(cols), dtype=np.int32), cols)),
+                shape=(1, self.n_items_),
+                dtype=np.float32,
+            )
+            user_row = (user_row + online_row).tocsr()
+
+        # recalculate_user=True computes online user factors with fixed item factors
+        item_ids_arr, scores_arr = self._model.recommend(
+            userid=0,
+            user_items=user_row,
+            N=n + (len(exclude_items) if exclude_items else 0) + 100,
+            filter_already_liked_items=filter_already_liked,
+            recalculate_user=True,
+        )
+
+        result_ids: List[int] = []
+        result_scores: List[float] = []
+        for idx, score in zip(item_ids_arr, scores_arr):
+            item_id = self.idx_to_item_[int(idx)]
+            if exclude_items and item_id in exclude_items:
+                continue
+            result_ids.append(item_id)
+            result_scores.append(float(score))
+            if len(result_ids) >= n:
+                break
+
+        return result_ids, result_scores
+
     def recommend(
         self,
         user_id: int,

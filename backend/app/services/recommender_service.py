@@ -26,6 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 try:
     from src.models.two_stage_recommender import TwoStageRecommender  # noqa: E402
+    from src.models.catboost_ranker import USER_FEATURE_COLS, RANKER_FEATURE_COLS, add_cross_features  # noqa: E402
     _TWO_STAGE_AVAILABLE = True
 except ImportError as _e:
     _TWO_STAGE_AVAILABLE = False
@@ -144,11 +145,17 @@ class RecommenderService:
             return []
         return [g for g in genres_val.split("|") if g and g != "(no genres listed)"]
 
+    @staticmethod
+    def _normalize_genre_name(genre: str) -> str:
+        return genre.lower().replace("-", "_")
+
     def _load_user_live_signals(self, user_id: int) -> Dict:
         """Read recent watched/review events and derive online preference signals."""
         seen_ids: Set[int] = set()
         seed_ids: List[int] = []
         genre_pref: Dict[str, float] = defaultdict(float)
+        interaction_strengths: Dict[int, float] = {}
+        interactions: List[Dict] = []
 
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -177,10 +184,36 @@ class RecommenderService:
                 review_rows = cur.fetchall()
 
         # Seen set = watched ∪ reviewed
-        for mid, _ in watched_rows:
-            seen_ids.add(int(mid))
-        for mid, _rating, _ in review_rows:
-            seen_ids.add(int(mid))
+        watched_ts = {}
+        for mid, ts in watched_rows:
+            movie_id = int(mid)
+            seen_ids.add(movie_id)
+            watched_ts[movie_id] = ts
+            interaction_strengths[movie_id] = max(interaction_strengths.get(movie_id, 0.0), 1.0)
+
+        reviewed = set()
+        for mid, rating, ts in review_rows:
+            movie_id = int(mid)
+            reviewed.add(movie_id)
+            seen_ids.add(movie_id)
+            interaction_strengths[movie_id] = max(interaction_strengths.get(movie_id, 0.0), float(rating))
+            interactions.append({
+                "movie_id": movie_id,
+                "rating": float(rating),
+                "ts": ts,
+            })
+
+        # Add watched-only events for online user feature refresh
+        for movie_id, ts in watched_ts.items():
+            if movie_id in reviewed:
+                continue
+            interactions.append({
+                "movie_id": movie_id,
+                "rating": 1.0,
+                "ts": ts,
+            })
+
+        interactions.sort(key=lambda x: x["ts"], reverse=True)
 
         # Seed movies for similar-item boosts: recent highly-rated first, then recent watched.
         for idx, (mid, rating, _ts) in enumerate(review_rows):
@@ -208,7 +241,109 @@ class RecommenderService:
             "seen_ids": seen_ids,
             "seed_ids": seed_ids[:12],
             "genre_pref": dict(genre_pref),
+            "interaction_strengths": interaction_strengths,
+            "interactions": interactions,
         }
+
+    def _build_online_user_feature_row(
+        self,
+        user_id: int,
+        live_signals: Dict,
+    ) -> Optional[pd.Series]:
+        if self._pipeline is None:
+            return None
+
+        # Start from training population mean as a stable fallback prior.
+        base = self._pipeline.user_features.mean(numeric_only=True)
+        if base.empty:
+            return None
+        row = base.copy()
+
+        events = live_signals.get("interactions", [])
+        if not events:
+            return row
+
+        ratings = [float(e["rating"]) for e in events if e.get("rating") is not None]
+        if ratings:
+            row["user_avg_rating"] = float(sum(ratings) / len(ratings))
+            row["user_num_ratings"] = float(len(ratings))
+            row["user_min_rating"] = float(min(ratings))
+            row["user_max_rating"] = float(max(ratings))
+            row["user_rating_std"] = float(pd.Series(ratings).std(ddof=0) or 0.0)
+
+        if events[0].get("ts") is not None and events[-1].get("ts") is not None:
+            last_ts = events[0]["ts"]
+            first_ts = events[-1]["ts"]
+            days = max((last_ts - first_ts).total_seconds() / 86400.0, 0.0)
+            row["user_activity_days"] = float(days)
+            row["user_rating_velocity"] = float(len(events) / max(days, 1.0))
+            row["user_days_since_last_rating"] = 0.0
+
+        # Online genre affinity from recent events.
+        aff_acc: Dict[str, List[float]] = defaultdict(list)
+        for e in events[:80]:
+            movie_id = int(e["movie_id"])
+            rating = float(e["rating"])
+            for genre in self._extract_movie_genres(movie_id):
+                aff_acc[self._normalize_genre_name(genre)].append(rating)
+
+        for col in USER_FEATURE_COLS:
+            if not col.startswith("user_affinity_"):
+                continue
+            key = col.replace("user_affinity_", "")
+            vals = aff_acc.get(key)
+            if vals:
+                row[col] = float(sum(vals) / len(vals))
+
+        # Keep only known ranker user columns.
+        keep = [c for c in USER_FEATURE_COLS if c in row.index]
+        return row[keep]
+
+    def _rank_candidates_with_online_user_features(
+        self,
+        user_id: int,
+        candidate_ids: List[int],
+        als_scores: List[float],
+        online_user_row: Optional[pd.Series],
+    ) -> List[dict]:
+        if self._pipeline is None:
+            return []
+
+        # Fast path: known user features exist in training tables.
+        X, valid_ids, _ = self._pipeline._build_feature_matrix(user_id, candidate_ids, als_scores)
+        if X is not None and len(valid_ids) > 0:
+            scores = self._pipeline.ranker.predict(X)
+            order = scores.argsort()[::-1]
+            return [
+                {"id": int(valid_ids[i]), "score": round(float(scores[i]), 6)}
+                for i in order
+            ]
+
+        # Unknown user: build matrix using online refreshed user features.
+        if online_user_row is None:
+            return [{"id": int(i), "score": float(s)} for i, s in zip(candidate_ids, als_scores)]
+
+        item_features = self._pipeline.item_features
+        valid_ids = [int(i) for i in candidate_ids if int(i) in item_features.index]
+        valid_scores = [s for i, s in zip(candidate_ids, als_scores) if int(i) in item_features.index]
+        if not valid_ids:
+            return []
+
+        itf = item_features.loc[valid_ids]
+        user_values = online_user_row.reindex(self._pipeline.user_features.columns, fill_value=0.0)
+        user_df = pd.DataFrame([user_values.values] * len(valid_ids), columns=user_values.index, index=itf.index)
+        X = pd.concat([user_df, itf], axis=1)
+        X["als_score"] = valid_scores
+        add_cross_features(X)
+        feature_cols = [c for c in RANKER_FEATURE_COLS if c in X.columns]
+        X = X[feature_cols].reset_index(drop=True)
+
+        scores = self._pipeline.ranker.predict(X)
+        order = scores.argsort()[::-1]
+        return [
+            {"id": int(valid_ids[i]), "score": round(float(scores[i]), 6)}
+            for i in order
+        ]
 
     def _build_similar_boost(self, seed_ids: List[int]) -> Dict[int, float]:
         if not seed_ids:
@@ -239,6 +374,7 @@ class RecommenderService:
         movies: List[dict],
         n: int,
         exclude_seen: bool,
+        live_signals: Optional[Dict] = None,
     ) -> List[dict]:
         """Cheap quasi-live rerank over static model outputs.
 
@@ -250,11 +386,14 @@ class RecommenderService:
         if not movies:
             return movies
 
-        try:
-            sig = self._load_user_live_signals(user_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Live signals unavailable for user %s: %s", user_id, exc)
-            return movies[:n]
+        if live_signals is None:
+            try:
+                sig = self._load_user_live_signals(user_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Live signals unavailable for user %s: %s", user_id, exc)
+                return movies[:n]
+        else:
+            sig = live_signals
 
         seen_ids: Set[int] = sig["seen_ids"]
         seed_ids: List[int] = sig["seed_ids"]
@@ -332,6 +471,42 @@ class RecommenderService:
         if self._pipeline is not None:
             try:
                 known_users = set(self._pipeline.candidate_model.user_id_map_.keys())
+
+                live_signals = self._load_user_live_signals(user_id)
+                live_strengths = live_signals.get("interaction_strengths", {})
+                has_live_events = len(live_strengths) > 0
+
+                # Medium-cost live embedding fold-in (fixed item factors).
+                if has_live_events:
+                    candidate_ids, candidate_scores = self._pipeline.candidate_model.recommend_with_recalculated_user(
+                        user_id=user_id,
+                        interaction_strengths=live_strengths,
+                        n=max(300, n * 10),
+                        exclude_items=live_signals.get("seen_ids") if exclude_seen else None,
+                        filter_already_liked=exclude_seen,
+                        include_training_history=True,
+                    )
+
+                    if candidate_ids:
+                        online_row = self._build_online_user_feature_row(user_id, live_signals)
+                        ranked = self._rank_candidates_with_online_user_features(
+                            user_id=user_id,
+                            candidate_ids=candidate_ids,
+                            als_scores=candidate_scores,
+                            online_user_row=online_row,
+                        )
+
+                        if ranked:
+                            ranked_movies = [self._enrich(m["id"], m["score"]) for m in ranked]
+                            ranked = self._apply_online_post_ranking(
+                                user_id=user_id,
+                                movies=ranked_movies,
+                                n=n,
+                                exclude_seen=exclude_seen,
+                                live_signals=live_signals,
+                            )
+                            return ranked, "two_stage_live_foldin"
+
                 if user_id in known_users:
                     raw = self._pipeline.recommend(
                         user_id=user_id,
@@ -345,6 +520,7 @@ class RecommenderService:
                         movies=movies,
                         n=n,
                         exclude_seen=exclude_seen,
+                        live_signals=live_signals,
                     )
                     return movies, "two_stage"
                 else:

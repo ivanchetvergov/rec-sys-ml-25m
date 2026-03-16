@@ -164,7 +164,7 @@ export function MoviePageClient({ movies }: Props) {
 
                         {personalModel && (
                             <span className="ml-auto text-xs text-zinc-500">
-                                {personalModel === "two_stage"
+                                {personalModel.startsWith("two_stage")
                                     ? "iALS + CatBoost Ranker"
                                     : "Popularity fallback"}
                             </span>
@@ -182,7 +182,7 @@ export function MoviePageClient({ movies }: Props) {
                     ) : (
                         <MovieRow
                             title="Recommended for You"
-                            badge={personalModel === "two_stage" ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
+                            badge={personalModel.startsWith("two_stage") ? "ML" : personalModel === "popularity_fallback" ? "TOP" : undefined}
                             movies={personalMovies}
                             onSelect={setSelected}
                         />
