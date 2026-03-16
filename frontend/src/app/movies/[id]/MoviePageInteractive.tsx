@@ -481,9 +481,12 @@ export default function MoviePageInteractive({ movie }: Props) {
 											<AvatarIcon avatarId={r.user_avatar_id} size={24} />
 										</div>
 										<div className='flex flex-col gap-0.5'>
-											<p className='text-sm text-zinc-200 font-medium'>
+											<Link
+												href={`/profile/${r.user_id}`}
+												className='text-sm text-zinc-200 font-medium hover:underline'
+											>
 												{r.user_login}
-											</p>
+											</Link>
 											<StarRating value={r.rating} size='sm' />
 										</div>
 									</div>

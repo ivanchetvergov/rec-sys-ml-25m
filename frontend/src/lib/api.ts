@@ -352,6 +352,53 @@ export interface PublicMovieReview {
 	created_at: string
 }
 
+export interface PublicProfileWatchedItem {
+	movie_id: number
+	title: string
+	genres: string | null
+	year: number | null
+	avg_rating: number | null
+	num_ratings: number | null
+	popularity_score: number | null
+	tmdb_id: number | null
+	imdb_id: string | null
+	watched_at: string
+}
+
+export interface PublicProfileWatchlistItem {
+	movie_id: number
+	title: string
+	genres: string | null
+	year: number | null
+	avg_rating: number | null
+	num_ratings: number | null
+	popularity_score: number | null
+	tmdb_id: number | null
+	imdb_id: string | null
+	added_at: string
+}
+
+export interface PublicProfileReviewItem {
+	movie_id: number
+	title: string
+	rating: number
+	review_text: string | null
+	created_at: string
+}
+
+export interface PublicUserProfile {
+	user_id: number
+	user_login: string
+	user_avatar_id: 'cat' | 'fox' | 'owl' | 'panda' | 'koala'
+	watched_count: number
+	watchlist_count: number
+	reviews_count: number
+	avg_rating: number | null
+	watched: PublicProfileWatchedItem[]
+	watchlist: PublicProfileWatchlistItem[]
+	reviews: PublicProfileReviewItem[]
+}
+
 export async function fetchReviews(token: string): Promise<Review[]> {
 	try {
 		const res = await fetch(`${API_URL}/api/reviews`, {
@@ -382,6 +429,22 @@ export async function fetchMovieReviews(
 		return res.json()
 	} catch {
 		return []
+	}
+}
+
+export async function fetchPublicUserProfile(
+	userId: number,
+	itemsLimit = 30,
+): Promise<PublicUserProfile | null> {
+	try {
+		const res = await fetch(
+			`${API_URL}/api/users/${userId}/profile?items_limit=${itemsLimit}`,
+			{ cache: 'no-store' },
+		)
+		if (!res.ok) return null
+		return res.json()
+	} catch {
+		return null
 	}
 }
 

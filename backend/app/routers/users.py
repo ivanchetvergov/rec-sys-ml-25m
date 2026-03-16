@@ -1,0 +1,182 @@
+"""Public users router — read-only profile data for user pages."""
+
+import psycopg2.extras
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+from app.core.db import get_connection
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+_DEFAULT_AVATARS: tuple[str, ...] = ("cat", "fox", "owl", "panda", "koala")
+
+
+def _default_avatar_id(user_id: int) -> str:
+    return _DEFAULT_AVATARS[abs(int(user_id)) % len(_DEFAULT_AVATARS)]
+
+
+class PublicWatchedItem(BaseModel):
+    movie_id: int
+    title: str
+    genres: str | None
+    year: int | None
+    avg_rating: float | None
+    num_ratings: int | None
+    popularity_score: float | None
+    tmdb_id: int | None
+    imdb_id: str | None
+    watched_at: str
+
+
+class PublicWatchlistItem(BaseModel):
+    movie_id: int
+    title: str
+    genres: str | None
+    year: int | None
+    avg_rating: float | None
+    num_ratings: int | None
+    popularity_score: float | None
+    tmdb_id: int | None
+    imdb_id: str | None
+    added_at: str
+
+
+class PublicUserReview(BaseModel):
+    movie_id: int
+    title: str
+    rating: int
+    review_text: str | None
+    created_at: str
+
+
+class PublicUserProfile(BaseModel):
+    user_id: int
+    user_login: str
+    user_avatar_id: str
+    watched_count: int
+    watchlist_count: int
+    reviews_count: int
+    avg_rating: float | None
+    watched: list[PublicWatchedItem]
+    watchlist: list[PublicWatchlistItem]
+    reviews: list[PublicUserReview]
+
+
+@router.get("/{user_id}/profile", response_model=PublicUserProfile)
+def get_public_user_profile(
+    user_id: int,
+    items_limit: int = Query(30, ge=1, le=200),
+):
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT id, login FROM users WHERE id = %s", (user_id,))
+            user_row = cur.fetchone()
+            if not user_row:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            cur.execute("SELECT COUNT(*) AS c FROM watched WHERE user_id = %s", (user_id,))
+            watched_count = int(cur.fetchone()["c"])
+
+            cur.execute("SELECT COUNT(*) AS c FROM watchlist WHERE user_id = %s", (user_id,))
+            watchlist_count = int(cur.fetchone()["c"])
+
+            cur.execute("SELECT COUNT(*) AS c FROM reviews WHERE user_id = %s", (user_id,))
+            reviews_count = int(cur.fetchone()["c"])
+
+            cur.execute("SELECT AVG(rating) AS v FROM reviews WHERE user_id = %s", (user_id,))
+            avg_rating = cur.fetchone()["v"]
+            avg_rating = float(avg_rating) if avg_rating is not None else None
+
+            cur.execute(
+                """
+                SELECT movie_id, title, genres, year, avg_rating, num_ratings,
+                       popularity_score, tmdb_id, imdb_id, watched_at
+                FROM watched
+                WHERE user_id = %s
+                ORDER BY watched_at DESC
+                LIMIT %s
+                """,
+                (user_id, items_limit),
+            )
+            watched_rows = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT movie_id, title, genres, year, avg_rating, num_ratings,
+                       popularity_score, tmdb_id, imdb_id, added_at
+                FROM watchlist
+                WHERE user_id = %s
+                ORDER BY added_at DESC
+                LIMIT %s
+                """,
+                (user_id, items_limit),
+            )
+            watchlist_rows = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT movie_id, title, rating, review_text, created_at
+                FROM reviews
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (user_id, items_limit),
+            )
+            review_rows = cur.fetchall()
+
+    watched = [
+        PublicWatchedItem(
+            movie_id=row["movie_id"],
+            title=row["title"],
+            genres=row.get("genres"),
+            year=row.get("year"),
+            avg_rating=row.get("avg_rating"),
+            num_ratings=row.get("num_ratings"),
+            popularity_score=row.get("popularity_score"),
+            tmdb_id=row.get("tmdb_id"),
+            imdb_id=row.get("imdb_id"),
+            watched_at=str(row["watched_at"]),
+        )
+        for row in watched_rows
+    ]
+
+    watchlist = [
+        PublicWatchlistItem(
+            movie_id=row["movie_id"],
+            title=row["title"],
+            genres=row.get("genres"),
+            year=row.get("year"),
+            avg_rating=row.get("avg_rating"),
+            num_ratings=row.get("num_ratings"),
+            popularity_score=row.get("popularity_score"),
+            tmdb_id=row.get("tmdb_id"),
+            imdb_id=row.get("imdb_id"),
+            added_at=str(row["added_at"]),
+        )
+        for row in watchlist_rows
+    ]
+
+    reviews = [
+        PublicUserReview(
+            movie_id=row["movie_id"],
+            title=row["title"],
+            rating=row["rating"],
+            review_text=row.get("review_text"),
+            created_at=str(row["created_at"]),
+        )
+        for row in review_rows
+    ]
+
+    return PublicUserProfile(
+        user_id=user_row["id"],
+        user_login=user_row["login"],
+        user_avatar_id=_default_avatar_id(user_row["id"]),
+        watched_count=watched_count,
+        watchlist_count=watchlist_count,
+        reviews_count=reviews_count,
+        avg_rating=avg_rating,
+        watched=watched,
+        watchlist=watchlist,
+        reviews=reviews,
+    )
