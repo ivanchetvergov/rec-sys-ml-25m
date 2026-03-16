@@ -4,8 +4,8 @@ import { CatalogSection } from "@/components/CatalogSection";
 import { HeroSection } from "@/components/HeroSection";
 import { MovieDetailModal } from "@/components/MovieDetailModal";
 import { MovieRow } from "@/components/MovieRow";
-import type { Movie, PersonalRec, WatchlistItem } from "@/lib/api";
-import { fetchPersonalRecs, fetchWatchlist } from "@/lib/api";
+import type { Movie, PersonalRec, WatchedItem } from "@/lib/api";
+import { fetchPersonalRecs, fetchWatched } from "@/lib/api";
 import { getAuthUser, getToken, isLoggedIn } from "@/lib/authStore";
 import { ensureKpiSessionStarted, trackKpi } from "@/lib/kpi";
 import { useEffect, useRef, useState } from "react";
@@ -36,6 +36,13 @@ interface RecommendationInsight {
     confidence: number;
     reasons: string[];
     stats: Array<{ label: string; value: string }>;
+    anchors: Array<{
+        title: string;
+        commonGenres: string[];
+        similarity: number;
+        year: number | null;
+        yearDelta: number | null;
+    }>;
 }
 
 function splitGenres(genres: string | null | undefined): string[] {
@@ -59,7 +66,7 @@ export function MoviePageClient({ movies }: Props) {
     const [personalMovies, setPersonalMovies] = useState<Movie[]>([]);
     const [personalModel, setPersonalModel] = useState<string>("");
     const [personalLoading, setPersonalLoading] = useState(true);
-    const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
+    const [watchedItems, setWatchedItems] = useState<WatchedItem[]>([]);
     const [fallbackGenre, setFallbackGenre] = useState<string>("");
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,16 +86,6 @@ export function MoviePageClient({ movies }: Props) {
         .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0))
         .slice(0, 12);
 
-    const watchlistReactivationPicks = personalMovies
-        .filter((m) =>
-            watchlistItems.some((w) => {
-                if (!m.genres || !w.genres) return false;
-                const mg = new Set(m.genres.split('|'));
-                return w.genres.split('|').some((g) => mg.has(g));
-            }),
-        )
-        .slice(0, 3);
-
     const openInsight = async (movie: Movie, source: RecommendationSource) => {
         setInsightMovie(movie);
         setInsightSource(source);
@@ -97,62 +94,69 @@ export function MoviePageClient({ movies }: Props) {
 
     const buildRecommendationInsight = (movie: Movie, source: RecommendationSource): RecommendationInsight => {
         const movieGenres = splitGenres(movie.genres);
-        const watchlistGenreCounts = watchlistItems.reduce<Record<string, number>>((acc, item) => {
+        const watchedGenreCounts = watchedItems.reduce<Record<string, number>>((acc, item) => {
             for (const g of splitGenres(item.genres)) {
                 acc[g] = (acc[g] ?? 0) + 1;
             }
             return acc;
         }, {});
 
-        const matchedGenres = movieGenres.filter((g) => watchlistGenreCounts[g] != null);
-        const genreHits = matchedGenres.reduce((sum, g) => sum + (watchlistGenreCounts[g] ?? 0), 0);
+        const anchors = watchedItems
+            .map((w) => {
+                const watchedGenres = splitGenres(w.genres);
+                const commonGenres = watchedGenres.filter((g) => movieGenres.includes(g));
+                const union = new Set([...watchedGenres, ...movieGenres]);
+                const genreJaccard = union.size > 0 ? commonGenres.length / union.size : 0;
+                const yearDelta = w.year != null && movie.year != null ? Math.abs(w.year - movie.year) : null;
+                const yearSimilarity = yearDelta == null ? 0.5 : Math.max(0, 1 - yearDelta / 30);
+                const similarity = Math.round((genreJaccard * 0.8 + yearSimilarity * 0.2) * 100);
+                return {
+                    title: w.title,
+                    commonGenres,
+                    similarity,
+                    year: w.year,
+                    yearDelta,
+                };
+            })
+            .filter((a) => a.commonGenres.length > 0)
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 3);
+
+        const anchorTitles = anchors.map((a) => a.title);
+        const matchedGenres = movieGenres.filter((g) => watchedGenreCounts[g] != null);
+        const genreHits = matchedGenres.reduce((sum, g) => sum + (watchedGenreCounts[g] ?? 0), 0);
+        const topSimilarity = anchors[0]?.similarity ?? 0;
+        const meanSimilarity = anchors.length > 0
+            ? Math.round(anchors.reduce((sum, a) => sum + a.similarity, 0) / anchors.length)
+            : 0;
 
         const score = movie.popularity_score ?? 0;
         const distribution = movies.map((m) => m.popularity_score ?? 0).sort((a, b) => a - b);
         const lessOrEqual = distribution.filter((v) => v <= score).length;
         const popularityPercentile = distribution.length > 0 ? Math.round((lessOrEqual / distribution.length) * 100) : 0;
 
-        const avgRating = movie.avg_rating ?? 0;
-        const ratingVotes = movie.num_ratings ?? 0;
-
         const genreSignal = matchedGenres.length > 0 ? Math.min(1, matchedGenres.length / 3) : 0.2;
-        const qualitySignal = avgRating > 0 ? Math.min(1, avgRating / 5) : 0.45;
-        const audienceSignal = Math.min(1, Math.log10(ratingVotes + 1) / 5);
+        const historySignal = Math.min(1, meanSimilarity / 100);
         const popularitySignal = Math.min(1, popularityPercentile / 100);
         const confidence = Math.round(
-            (genreSignal * 0.35 + qualitySignal * 0.25 + audienceSignal * 0.2 + popularitySignal * 0.2) * 100,
+            (historySignal * 0.6 + genreSignal * 0.25 + popularitySignal * 0.15) * 100,
         );
 
         const reasons: string[] = [];
-        if (matchedGenres.length > 0) {
-            reasons.push(`Жанровое совпадение с вашим профилем: ${matchedGenres.slice(0, 3).join(', ')}.`);
-            reasons.push(`В вашем watchlist найдено ${genreHits} пересечений по этим жанрам.`);
+        if (anchorTitles.length > 0) {
+            reasons.push(`Вы уже смотрели похожие фильмы: ${anchorTitles.join(', ')}.`);
+            reasons.push(`Основа похожести: общие жанры (${matchedGenres.slice(0, 4).join(', ')}), плюс близость по эпохе выпуска.`);
+            reasons.push(`В вашей истории найдено ${genreHits} пересечений по жанрам.`);
+        } else if (matchedGenres.length > 0) {
+            reasons.push(`Есть совпадение с вашими прошлыми просмотрами по жанрам: ${matchedGenres.slice(0, 3).join(', ')}.`);
         } else {
             reasons.push('Фильм выбран как расширение вкуса: добавляет новые жанры при сохранении качества подборки.');
         }
 
         if (source === 'personal') {
-            reasons.push(
-                personalModel.startsWith('two_stage')
-                    ? 'Персональный ranker учел ваши прошлые оценки, просмотры и скрытые предпочтения.'
-                    : 'Использован персональный fallback из глобально сильных фильмов с похожим профилем вовлечения.',
-            );
+            reasons.push('Рекомендация опирается на ваши реальные просмотры, а не на случайный популярный список.');
         } else {
-            reasons.push('Рекомендация собрана из популярных фильмов выбранного жанра для быстрого возврата в персонализацию.');
-        }
-
-        if (avgRating > 0) {
-            reasons.push(`Качество по оценкам аудитории: ${avgRating.toFixed(1)} / 5.`);
-        }
-        if (ratingVotes > 0) {
-            reasons.push(`Надежность сигнала: ${ratingVotes.toLocaleString()} пользовательских оценок.`);
-        }
-        if (movie.year) {
-            reasons.push(
-                movie.year >= 2018
-                    ? `Свежесть каталога: фильм ${movie.year} года, чтобы балансировать классику и новинки.`
-                    : `Добавлен как стабильный тайтл ${movie.year} года с долгим жизненным циклом оценок.`,
-            );
+            reasons.push('Это стартовая рекомендация по жанровой релевантности до накопления персональной истории.');
         }
 
         return {
@@ -161,12 +165,13 @@ export function MoviePageClient({ movies }: Props) {
             reasons,
             stats: [
                 { label: 'Источник сигнала', value: source === 'personal' ? 'Персональная модель' : 'Жанровый fallback' },
-                { label: 'Популярность', value: `${popularityPercentile}% перцентиль` },
-                { label: 'Рейтинг', value: avgRating > 0 ? `${avgRating.toFixed(1)} / 5` : 'Недостаточно данных' },
-                { label: 'Объем оценок', value: ratingVotes > 0 ? ratingVotes.toLocaleString() : 'Нет данных' },
+                { label: 'Сходство с историей', value: anchors.length > 0 ? `${meanSimilarity}% (топ: ${topSimilarity}%)` : 'Недостаточно данных' },
+                { label: 'Популярность (перцентиль)', value: ` ${popularityPercentile}%` },
+                { label: 'Опорные просмотренные фильмы', value: anchorTitles.length > 0 ? anchorTitles.join(', ') : 'Не найдены' },
                 { label: 'Жанровых матчей', value: `${matchedGenres.length}` },
-                { label: 'Год релиза', value: movie.year ? String(movie.year) : 'Не указан' },
+                { label: 'Модель', value: source === 'personal' && personalModel ? personalModel : 'genre_fallback' },
             ],
+            anchors,
         };
     };
 
@@ -221,10 +226,10 @@ export function MoviePageClient({ movies }: Props) {
     useEffect(() => {
         const token = getToken();
         if (!token) {
-            setWatchlistItems([]);
+            setWatchedItems([]);
             return;
         }
-        fetchWatchlist(token).then(setWatchlistItems);
+        fetchWatched(token).then(setWatchedItems);
     }, [meId]);
 
     const applyCustom = () => {
@@ -379,29 +384,6 @@ export function MoviePageClient({ movies }: Props) {
                         </div>
                     ) : (
                         <>
-                            {watchlistItems.length > 0 && (
-                                <div
-                                    className="rounded-2xl p-4 mb-4"
-                                    style={{ background: 'rgba(16,185,129,0.09)', border: '1px solid rgba(16,185,129,0.25)' }}
-                                >
-                                    <p className="text-sm text-emerald-300 font-semibold">
-                                        У вас {watchlistItems.length} фильмов в watchlist. Вот 3 наиболее релевантных сегодня:
-                                    </p>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        {(watchlistReactivationPicks.length > 0 ? watchlistReactivationPicks : personalMovies.slice(0, 3)).map((m) => (
-                                            <button
-                                                key={m.id}
-                                                onClick={() => setSelected(m)}
-                                                className="text-xs px-2.5 py-1.5 rounded-full border text-zinc-200"
-                                                style={{ borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)' }}
-                                            >
-                                                {m.title}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             <MovieRow
                                 title="Recommended for You"
                                 movies={personalMovies}
@@ -472,6 +454,30 @@ export function MoviePageClient({ movies }: Props) {
                                     </div>
                                 ))}
                             </div>
+
+                            {insight.anchors.length > 0 && (
+                                <div className="mt-4">
+                                    <p className="text-sm font-semibold text-white mb-2">Похоже на просмотренные вами</p>
+                                    <div className="space-y-2">
+                                        {insight.anchors.map((a) => (
+                                            <div
+                                                key={a.title}
+                                                className="rounded-lg px-3 py-2.5"
+                                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <p className="text-sm text-white font-semibold">{a.title}</p>
+                                                    <span className="text-xs text-cyan-200">Сходство: {a.similarity}%</span>
+                                                </div>
+                                                <p className="text-xs text-zinc-300 mt-1">
+                                                    Общие жанры: {a.commonGenres.join(', ')}
+                                                    {a.yearDelta != null ? ` • Разница по году: ${a.yearDelta}` : ''}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </section>

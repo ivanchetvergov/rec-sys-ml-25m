@@ -1,7 +1,7 @@
 "use client";
 
 import type { Movie } from "@/lib/api";
-import { addWatchedDB, fetchMovieDetails, upsertReview } from "@/lib/api";
+import { fetchMovieDetails, upsertReview } from "@/lib/api";
 import { getToken, isLoggedIn } from "@/lib/authStore";
 import { trackKpi } from "@/lib/kpi";
 import { useRouter } from "next/navigation";
@@ -32,7 +32,7 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
 
     const [posterUrl, setPosterUrl] = useState<string | null>(null);
     const [imgError, setImgError] = useState(false);
-    const [busy, setBusy] = useState<"watched" | "rating" | null>(null);
+    const [busy, setBusy] = useState<"rating" | null>(null);
     const [quickNote, setQuickNote] = useState<string | null>(null);
 
     useEffect(() => {
@@ -57,19 +57,6 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
             return null;
         }
         return getToken();
-    };
-
-    const addWatchedQuick = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const token = requireToken();
-        if (!token) return;
-        setBusy("watched");
-        const ok = await addWatchedDB(token, movie);
-        if (ok) {
-            setQuickNote("Marked watched");
-            await trackKpi('watched_add', 'card_quick_actions', movie.id);
-        }
-        setBusy(null);
     };
 
     const rateQuick = async (e: React.MouseEvent, rating: number) => {
@@ -170,14 +157,6 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
                     </div>
 
                     <div className="mt-2 flex items-center gap-2">
-                        <button
-                            onClick={addWatchedQuick}
-                            disabled={busy !== null}
-                            className="text-[10px] px-2 py-1 rounded border text-zinc-200 disabled:opacity-50"
-                            style={{ borderColor: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.1)" }}
-                        >
-                            ✓ Watched
-                        </button>
                         {onExplain && (
                             <button
                                 onClick={(e) => {
