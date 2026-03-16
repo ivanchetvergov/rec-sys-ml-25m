@@ -12,6 +12,10 @@
  */
 
 import type { AuthUser } from './api'
+import {
+	defaultAvatarForUser,
+	type AvatarId,
+} from './avatars'
 
 const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
@@ -21,6 +25,16 @@ const ACCOUNTS_KEY = 'auth_accounts'
 export interface StoredAccount {
 	token: string
 	user: AuthUser
+	avatar_id: AvatarId
+}
+
+function normalizeAccount(raw: Partial<StoredAccount>): StoredAccount | null {
+	if (!raw.token || !raw.user) return null
+	return {
+		token: raw.token,
+		user: raw.user,
+		avatar_id: raw.avatar_id ?? defaultAvatarForUser(raw.user.id),
+	}
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -81,7 +95,11 @@ export function getAccounts(): StoredAccount[] {
 	if (typeof window === 'undefined') return []
 	try {
 		const raw = localStorage.getItem(ACCOUNTS_KEY)
-		return raw ? (JSON.parse(raw) as StoredAccount[]) : []
+		if (!raw) return []
+		const parsed = JSON.parse(raw) as Partial<StoredAccount>[]
+		return parsed
+			.map(normalizeAccount)
+			.filter((a): a is StoredAccount => a !== null)
 	} catch {
 		return []
 	}
@@ -101,9 +119,17 @@ export function setAuth(token: string, user: AuthUser): void {
 	const accounts = getAccounts()
 	const idx = accounts.findIndex(a => a.user.id === user.id)
 	if (idx >= 0) {
-		accounts[idx] = { token, user }
+		accounts[idx] = {
+			token,
+			user,
+			avatar_id: accounts[idx].avatar_id,
+		}
 	} else {
-		accounts.push({ token, user })
+		accounts.push({
+			token,
+			user,
+			avatar_id: defaultAvatarForUser(user.id),
+		})
 	}
 	saveAccounts(accounts)
 	window.dispatchEvent(new Event('auth-change'))
@@ -115,6 +141,29 @@ export function switchAccount(userId: number): void {
 	if (!account) return
 	localStorage.setItem(TOKEN_KEY, account.token)
 	localStorage.setItem(USER_KEY, JSON.stringify(account.user))
+	window.dispatchEvent(new Event('auth-change'))
+}
+
+export function getAvatarForUser(userId: number): AvatarId {
+	const account = getAccounts().find(a => a.user.id === userId)
+	if (!account) return defaultAvatarForUser(userId)
+	return account.avatar_id
+}
+
+export function getCurrentAvatar(): AvatarId | null {
+	const user = getAuthUser()
+	if (!user) return null
+	return getAvatarForUser(user.id)
+}
+
+export function setCurrentAvatar(avatarId: AvatarId): void {
+	const current = getAuthUser()
+	if (!current) return
+	const accounts = getAccounts()
+	const idx = accounts.findIndex(a => a.user.id === current.id)
+	if (idx < 0) return
+	accounts[idx] = { ...accounts[idx], avatar_id: avatarId }
+	saveAccounts(accounts)
 	window.dispatchEvent(new Event('auth-change'))
 }
 

@@ -8,7 +8,12 @@ import {
 	fetchWatchlist,
 	removeWatchedDB,
 } from '@/lib/api'
-import { getAuthUser, getToken } from '@/lib/authStore'
+import {
+	getAuthUser,
+	getCurrentAvatar,
+	getToken,
+} from '@/lib/authStore'
+import { AvatarIcon, type AvatarId } from '@/lib/avatars'
 import { useEffect, useRef, useState } from 'react'
 
 // ── Genre stats utility (pure function, no localStorage) ─────────────────────
@@ -347,10 +352,21 @@ export default function ProfilePage() {
 	const [reviews, setReviews] = useState<Review[]>([])
 	const [ready, setReady] = useState(false)
 	const [authUser, setAuthUser] = useState(getAuthUser())
+	const [avatarId, setAvatarId] = useState<AvatarId | null>(getCurrentAvatar())
+
+	useEffect(() => {
+		const sync = () => {
+			setAuthUser(getAuthUser())
+			setAvatarId(getCurrentAvatar())
+		}
+		window.addEventListener('auth-change', sync)
+		return () => window.removeEventListener('auth-change', sync)
+	}, [])
 
 	useEffect(() => {
 		const token = getToken()
 		setAuthUser(getAuthUser())
+		setAvatarId(getCurrentAvatar())
 
 		if (!token) {
 			setReady(true)
@@ -428,10 +444,10 @@ export default function ProfilePage() {
 				{authUser && (
 					<div className='flex items-center gap-4 mb-2'>
 						<div
-							className='w-14 h-14 rounded-full flex items-center justify-center text-xl font-black text-white flex-shrink-0'
-							style={{ background: 'var(--netflix-red)' }}
+							className='w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden'
+							style={{ background: 'rgba(255,255,255,0.06)' }}
 						>
-							{authUser.login.charAt(0).toUpperCase()}
+							{avatarId ? <AvatarIcon avatarId={avatarId} size={52} /> : null}
 						</div>
 						<div>
 							<h1 className='text-2xl font-black text-white'>

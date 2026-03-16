@@ -7,9 +7,13 @@ import {
 	clearAuth,
 	getAccounts,
 	getAuthUser,
+	getAvatarForUser,
+	getCurrentAvatar,
 	isLoggedIn,
+	setCurrentAvatar,
 	switchAccount,
 } from '@/lib/authStore'
+import { AVATAR_OPTIONS, AvatarIcon } from '@/lib/avatars'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -130,8 +134,7 @@ export default function Header() {
 		setSwitchOpen(false)
 	}
 
-	// Avatar letter — first char of login, uppercase
-	const avatarLetter = user?.login.charAt(0).toUpperCase() ?? ''
+	const currentAvatar = user ? getCurrentAvatar() : null
 
 	return (
 		<header
@@ -416,10 +419,23 @@ export default function Header() {
 								setSearchOpen(false)
 							}}
 							className='w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white focus:outline-none transition-opacity hover:opacity-80 select-none'
-							style={{ background: 'var(--netflix-red)' }}
+							style={{ background: 'rgba(255,255,255,0.06)' }}
 							aria-label='Account menu'
 						>
-							{avatarLetter}
+							<svg
+								xmlns='http://www.w3.org/2000/svg'
+								className='w-5 h-5 text-zinc-200'
+								fill='none'
+								viewBox='0 0 24 24'
+								stroke='currentColor'
+								strokeWidth={2}
+							>
+								<path
+									strokeLinecap='round'
+									strokeLinejoin='round'
+									d='M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z'
+								/>
+							</svg>
 						</button>
 
 						{/* Dropdown panel */}
@@ -439,9 +455,22 @@ export default function Header() {
 								>
 									<div
 										className='w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white'
-										style={{ background: 'var(--netflix-red)' }}
+										style={{ background: 'rgba(255,255,255,0.06)' }}
 									>
-										{avatarLetter}
+										<svg
+											xmlns='http://www.w3.org/2000/svg'
+											className='w-4 h-4 text-zinc-300'
+											fill='none'
+											viewBox='0 0 24 24'
+											stroke='currentColor'
+											strokeWidth={2}
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												d='M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z'
+											/>
+										</svg>
 									</div>
 									<div className='min-w-0'>
 										<p className='text-sm font-semibold text-white truncate'>
@@ -512,11 +541,12 @@ export default function Header() {
 													>
 														<div
 															className='w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white'
-															style={{
-																background: `hsl(${(a.user.id * 63) % 360},55%,40%)`,
-															}}
+															style={{ background: 'rgba(255,255,255,0.06)' }}
 														>
-															{a.user.login.charAt(0).toUpperCase()}
+															<AvatarIcon
+																avatarId={getAvatarForUser(a.user.id)}
+																size={24}
+															/>
 														</div>
 														<span className='text-sm text-zinc-200 truncate'>
 															{a.user.login}
@@ -527,10 +557,10 @@ export default function Header() {
 											{/* No other accounts hint */}
 											{accounts.filter(a => a.user.id !== user.id).length ===
 												0 && (
-												<p className='px-4 py-2 text-xs text-zinc-600'>
-													No other accounts saved
-												</p>
-											)}
+													<p className='px-4 py-2 text-xs text-zinc-600'>
+														No other accounts saved
+													</p>
+												)}
 
 											{/* Add account */}
 											<Link
@@ -567,6 +597,37 @@ export default function Header() {
 													Add account
 												</span>
 											</Link>
+
+											{/* Avatar picker moved from Profile page */}
+											<div className='px-4 pt-2'>
+												<p className='text-[11px] uppercase tracking-wide text-zinc-500 mb-2'>
+													Avatar
+												</p>
+												<div className='grid grid-cols-5 gap-1.5'>
+													{AVATAR_OPTIONS.map(option => {
+														const selected = currentAvatar === option.id
+														return (
+															<button
+																key={option.id}
+																type='button'
+																title={option.label}
+																onClick={() => setCurrentAvatar(option.id)}
+																className='w-8 h-8 rounded-full flex items-center justify-center transition-colors'
+																style={{
+																	background: selected
+																		? 'rgba(229,9,20,0.18)'
+																		: 'rgba(255,255,255,0.06)',
+																	border: selected
+																		? '1px solid rgba(229,9,20,0.5)'
+																		: '1px solid rgba(255,255,255,0.12)',
+																}}
+															>
+																<AvatarIcon avatarId={option.id} size={20} />
+															</button>
+														)
+													})}
+												</div>
+											</div>
 										</div>
 									)}
 								</div>
