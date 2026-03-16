@@ -8,11 +8,12 @@
  *  - Write/edit review textarea with Save (DB-backed)
  *  - Similar movies row (ALS cosine similarity via /api/movies/{id}/similar)
  */
-import type { Movie, Review } from '@/lib/api'
+import type { Movie, PublicMovieReview } from '@/lib/api'
 import {
 	addWatchedDB,
 	addToWatchlist as apiAddWatchlist,
 	removeFromWatchlist as apiRemoveWatchlist,
+	fetchMovieReviews,
 	fetchReviews,
 	fetchSimilarMovies,
 	fetchWatched,
@@ -21,6 +22,7 @@ import {
 	upsertReview,
 } from '@/lib/api'
 import { isLoggedIn as checkIsLoggedIn, getToken } from '@/lib/authStore'
+import { AvatarIcon } from '@/lib/avatars'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
@@ -168,8 +170,8 @@ export default function MoviePageInteractive({ movie }: Props) {
 	const [saveError, setSaveError] = useState<string | null>(null)
 	const [loggedIn, setLoggedIn] = useState(false)
 
-	// ── saved reviews list for this movie
-	const [savedReviews, setSavedReviews] = useState<Review[]>([])
+	// ── public movie reviews (all users)
+	const [communityReviews, setCommunityReviews] = useState<PublicMovieReview[]>([])
 
 	// ── similar movies
 	const [similar, setSimilar] = useState<SimMovie[]>([])
@@ -188,7 +190,8 @@ export default function MoviePageInteractive({ movie }: Props) {
 	useEffect(() => {
 		const token = getToken()
 		if (!token) {
-			setSavedReviews([])
+			setUserRating(0)
+			setReview('')
 			return
 		}
 		// Watched + Watchlist + own review from DB
@@ -199,20 +202,23 @@ export default function MoviePageInteractive({ movie }: Props) {
 			setInWatchlist(wl.some(w => w.movie_id === movie.id))
 		})
 		fetchReviews(token).then(all => {
-			const movieReviews = all
+			const ownMovieReviews = all
 				.filter(r => r.movie_id === movie.id)
 				.sort(
 					(a, b) =>
 						new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
 				)
-			setSavedReviews(movieReviews)
 
-			const mine = movieReviews[0]
+			const mine = ownMovieReviews[0]
 			if (mine) {
 				setUserRating(mine.rating)
 				setReview(mine.review_text ?? '')
 			}
 		})
+	}, [movie.id])
+
+	useEffect(() => {
+		fetchMovieReviews(movie.id, 30).then(setCommunityReviews)
 	}, [movie.id])
 
 	// ── Load similar movies (ALS cosine similarity via API)
@@ -243,9 +249,9 @@ export default function MoviePageInteractive({ movie }: Props) {
 			return
 		}
 
-		setSavedReviews([savedReview])
 		setUserRating(savedReview.rating)
 		setReview(savedReview.review_text ?? '')
+		fetchMovieReviews(movie.id, 30).then(setCommunityReviews)
 		setIsSaving(false)
 		setSaved(true)
 		setTimeout(() => setSaved(false), 2000)
@@ -438,14 +444,14 @@ export default function MoviePageInteractive({ movie }: Props) {
 			{/* ── Community reviews ────────────────────────────────────────── */}
 			<div>
 				<h2 className='text-lg font-bold text-white mb-4'>
-					Saved reviews
-					{savedReviews.length > 0 && (
+					Community reviews
+					{communityReviews.length > 0 && (
 						<span className='ml-2 text-sm font-normal text-zinc-500'>
-							({savedReviews.length})
+							({communityReviews.length})
 						</span>
 					)}
 				</h2>
-				{savedReviews.length === 0 ? (
+				{communityReviews.length === 0 ? (
 					<div
 						className='rounded-2xl px-6 py-8 text-center text-zinc-500 text-sm'
 						style={{
@@ -457,7 +463,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 					</div>
 				) : (
 					<div className='flex flex-col gap-4'>
-						{savedReviews.map((r, i) => (
+						{communityReviews.map(r => (
 							<div
 								key={r.id}
 								className='rounded-2xl px-6 py-4 flex flex-col gap-2'
@@ -469,14 +475,17 @@ export default function MoviePageInteractive({ movie }: Props) {
 								<div className='flex items-center justify-between gap-4'>
 									<div className='flex items-center gap-3'>
 										<div
-											className='w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white'
-											style={{
-												background: `hsl(${(movie.id * 17 + i * 73) % 360}, 50%, 40%)`,
-											}}
+											className='w-8 h-8 rounded-full flex items-center justify-center overflow-hidden'
+											style={{ background: 'rgba(255,255,255,0.06)' }}
 										>
-											U
+											<AvatarIcon avatarId={r.user_avatar_id} size={24} />
 										</div>
-										<StarRating value={r.rating} size='sm' />
+										<div className='flex flex-col gap-0.5'>
+											<p className='text-sm text-zinc-200 font-medium'>
+												{r.user_login}
+											</p>
+											<StarRating value={r.rating} size='sm' />
+										</div>
 									</div>
 									<span className='text-xs text-zinc-500'>
 										{new Date(r.created_at).toLocaleDateString('en-US', {

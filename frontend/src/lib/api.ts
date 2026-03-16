@@ -341,6 +341,17 @@ export interface Review {
 	created_at: string
 }
 
+export interface PublicMovieReview {
+	id: number
+	user_id: number
+	user_login: string
+	user_avatar_id: 'cat' | 'fox' | 'owl' | 'panda' | 'koala'
+	movie_id: number
+	rating: number
+	review_text: string | null
+	created_at: string
+}
+
 export async function fetchReviews(token: string): Promise<Review[]> {
 	try {
 		const res = await fetch(`${API_URL}/api/reviews`, {
@@ -351,6 +362,23 @@ export async function fetchReviews(token: string): Promise<Review[]> {
 			await handleUnauthorized(res)
 			return []
 		}
+		return res.json()
+	} catch {
+		return []
+	}
+}
+
+export async function fetchMovieReviews(
+	movieId: number,
+	limit = 20,
+	offset = 0,
+): Promise<PublicMovieReview[]> {
+	try {
+		const res = await fetch(
+			`${API_URL}/api/reviews/movie/${movieId}?limit=${limit}&offset=${offset}`,
+			{ cache: 'no-store' },
+		)
+		if (!res.ok) return []
 		return res.json()
 	} catch {
 		return []
