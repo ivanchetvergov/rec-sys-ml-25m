@@ -1,57 +1,74 @@
-# RecSys — Документация
+# RecSys Documentation Hub
 
-Рекомендательная система на базе MovieLens 25M с FastAPI бэкендом и Next.js фронтендом.
+Актуальная документация по проекту MovieLens 25M recommender platform.
 
-## Разделы
+Этот каталог отражает текущее состояние кода: двухстадийная ML-модель, FastAPI backend, Next.js frontend, пользовательские действия (watched, watchlist, reviews), публичные профили и privacy.
 
-| Файл | Описание |
-|------|----------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Общая архитектура системы, схема слоёв, поток данных |
-| [models.md](models.md) | ML-модели: алгоритмы, обучение, артефакты, интеграция с бэкендом |
-| [ml-pipeline.md](ml-pipeline.md) | ETL, препроцессинг, feature store, метрики |
-| [backend.md](backend.md) | FastAPI бэкенд: структура, сервисы, схемы |
-| [api.md](api.md) | REST API справочник: все эндпоинты, параметры, примеры |
-| [frontend.md](frontend.md) | Next.js фронтенд: страницы, компоненты, API клиент |
+## Карта документации
+
+| Файл | Назначение |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Сквозная архитектура: слои, потоки данных, runtime контуры |
+| [models.md](models.md) | Подробное описание ML-моделей, артефактов, метрик, online-логики |
+| [ml-pipeline.md](ml-pipeline.md) | Data/feature pipeline, train flow, reproducibility, проверка качества |
+| [backend.md](backend.md) | Структура backend, сервисы, auth, БД, миграции, operational notes |
+| [api.md](api.md) | REST API reference по всем публичным и защищенным endpoint |
+| [frontend.md](frontend.md) | Архитектура frontend, страницы, state/auth, интеграция с API |
+
+## Что изменилось относительно старой документации
+
+1. Обновлены endpoint и бизнес-правила:
+   - reviews now imply watched
+   - rated movie removed from watchlist
+   - privacy endpoints для профиля
+   - admin statistics endpoints
+2. Уточнен runtime recommender flow:
+   - базовая two-stage inference
+   - quasi-live post-ranking
+   - live fold-in user embedding (без полного retrain)
+3. Актуализированы команды Makefile и зависимости между шагами.
 
 ## Быстрый старт
 
 ```bash
-# 1. Препроцессинг (один раз)
-make preprocess           # ETL + feature store
-make extract-movies       # лёгкий каталог фильмов (~17K строк)
+# 1) Data pipeline
+make preprocess
+make extract-movies
 
-# 2. Обучить production-модель
-make train-ranker-sample  # ~5-10 мин (10% данных)
-make train-ranker         # ~30-60 мин (полный датасет)
+# 2) Train production recommender
+make train-ranker-sample   # быстрый прогон
+# или
+make train-ranker          # полный прогон
 
-# 3. Собрать индекс похожих фильмов
-make build-similarity     # ~1-2 мин
+# 3) Build similarity index
+make build-similarity
 
-# 4. Запустить сервис
-make web                  # Docker: http://localhost
-make backend              # только бэкенд: http://localhost:8000
+# 4) Run stack
+make web
 
-# 5. Посмотреть ML-эксперименты
-make mlflow-ui            # http://localhost:5000
+# 5) Open services
+# App:     http://localhost
+# Backend: http://localhost:8000/api/docs
+# MLflow:  make mlflow-ui
 ```
 
-## Текущее состояние
+## Рекомендуемый порядок чтения
 
-| Функционал | Статус |
-|------------|--------|
-| ETL пайплайн MovieLens 25M | ✅ готово |
-| Feature store (parquet) | ✅ готово |
-| PopularityRecommender | ✅ готово |
-| iALS + CatBoost TwoStageRecommender | ✅ готово |
-| Item-item similarity index (ALS cosine) | ✅ готово |
-| MLflow эксперименты | ✅ готово |
-| FastAPI `/movies/popular` | ✅ готово |
-| FastAPI `/movies/personal` | ✅ готово |
-| FastAPI `/movies/{id}/similar` | ✅ готово |
-| FastAPI `/movies/{id}/details` (TMDB) | ✅ готово |
-| Главная страница (Trending + Personal) | ✅ готово |
-| Каталог фильмов с фильтрацией | ✅ готово |
-| Страница фильма (рейтинг, отзывы, похожие) | ✅ готово |
-| Docker live-reload | ✅ готово |
-| Авторизация / профили | 🔜 следующий этап |
-| Persistent reviews (БД) | 🔜 следующий этап |
+1. [ARCHITECTURE.md](ARCHITECTURE.md)
+2. [models.md](models.md)
+3. [ml-pipeline.md](ml-pipeline.md)
+4. [backend.md](backend.md)
+5. [api.md](api.md)
+6. [frontend.md](frontend.md)
+
+## Источник истины
+
+При расхождениях между docs и кодом источником истины является код в:
+
+- backend/app/routers
+- backend/app/services
+- src/models
+- src/training
+- frontend/src/lib/api.ts
+
+Документация в этом каталоге синхронизирована с текущим состоянием репозитория на 2026-03-16.

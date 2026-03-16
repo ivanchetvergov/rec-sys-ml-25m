@@ -16,6 +16,7 @@ import {
 	getToken,
 } from '@/lib/authStore'
 import { AvatarIcon, type AvatarId } from '@/lib/avatars'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 // ── Genre stats utility (pure function, no localStorage) ─────────────────────
@@ -129,9 +130,12 @@ function MiniCard({
 					borderTop: '1px solid rgba(255,255,255,0.06)',
 				}}
 			>
-				<p className='text-xs font-semibold text-white line-clamp-1'>
+				<Link
+					href={`/movies/${movie.id}`}
+					className='text-xs font-semibold text-white line-clamp-1 hover:underline'
+				>
 					{movie.title}
-				</p>
+				</Link>
 				{movie.year && (
 					<p className='text-xs text-zinc-600 mt-0.5'>{movie.year}</p>
 				)}
@@ -491,8 +495,8 @@ export default function ProfilePage() {
 										? 'rgba(229,9,20,0.16)'
 										: 'rgba(46,160,67,0.16)',
 									border: `1px solid ${isProfilePrivate
-											? 'rgba(229,9,20,0.45)'
-											: 'rgba(46,160,67,0.45)'
+										? 'rgba(229,9,20,0.45)'
+										: 'rgba(46,160,67,0.45)'
 										}`,
 									color: isProfilePrivate ? '#f87171' : '#4ade80',
 								}}
@@ -832,9 +836,12 @@ export default function ProfilePage() {
 											<ReviewPoster movieId={rv.movie_id} gradient={gradient} />
 											<div className='flex flex-col gap-1.5 flex-1 min-w-0'>
 												<div className='flex items-start justify-between gap-2'>
-													<p className='text-sm font-semibold text-white truncate'>
+													<Link
+														href={`/movies/${rv.movie_id}`}
+														className='text-sm font-semibold text-white truncate hover:underline'
+													>
 														{rv.title ?? `Movie #${rv.movie_id}`}
-													</p>
+													</Link>
 													<span className='text-xs text-zinc-600 flex-shrink-0'>
 														{new Date(rv.created_at).toLocaleDateString(
 															'en-US',

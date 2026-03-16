@@ -16,6 +16,16 @@ def _default_avatar_id(user_id: int) -> str:
     return _DEFAULT_AVATARS[abs(int(user_id)) % len(_DEFAULT_AVATARS)]
 
 
+def _ensure_profile_privacy_column(cur) -> None:
+    """Defensive guard for environments where migration history is out of sync."""
+    cur.execute(
+        """
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS is_profile_private BOOLEAN NOT NULL DEFAULT FALSE
+        """
+    )
+
+
 class PublicWatchedItem(BaseModel):
     movie_id: int
     title: str
@@ -78,6 +88,7 @@ def get_public_user_profile(
 ):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            _ensure_profile_privacy_column(cur)
             cur.execute(
                 "SELECT id, login, is_profile_private FROM users WHERE id = %s",
                 (user_id,),
@@ -200,6 +211,7 @@ def get_public_user_profile(
 def get_my_profile_privacy(user: dict = Depends(get_current_user)):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            _ensure_profile_privacy_column(cur)
             cur.execute("SELECT is_profile_private FROM users WHERE id = %s", (user["id"],))
             row = cur.fetchone()
             if not row:
@@ -214,6 +226,7 @@ def update_my_profile_privacy(
 ):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            _ensure_profile_privacy_column(cur)
             cur.execute(
                 """
                 UPDATE users
