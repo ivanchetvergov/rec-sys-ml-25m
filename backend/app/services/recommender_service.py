@@ -11,9 +11,10 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 import pandas as pd
 
@@ -33,6 +34,8 @@ except ImportError as _e:
     )
 
 from app.services.popularity_service import PopularityService  # noqa: E402
+from app.services.similarity_service import get_similarity_service  # noqa: E402
+from app.core.db import get_connection  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,168 @@ class RecommenderService:
             "tmdb_id": int(row["tmdbId"]) if pd.notna(row.get("tmdbId")) else None,
         }
 
+    def _extract_movie_genres(self, movie_id: int) -> List[str]:
+        if self._movies is None or movie_id not in self._movies.index:
+            return []
+        genres_val = self._movies.loc[movie_id].get("genres")
+        if not isinstance(genres_val, str):
+            return []
+        return [g for g in genres_val.split("|") if g and g != "(no genres listed)"]
+
+    def _load_user_live_signals(self, user_id: int) -> Dict:
+        """Read recent watched/review events and derive online preference signals."""
+        seen_ids: Set[int] = set()
+        seed_ids: List[int] = []
+        genre_pref: Dict[str, float] = defaultdict(float)
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT movie_id, watched_at
+                    FROM watched
+                    WHERE user_id = %s
+                    ORDER BY watched_at DESC
+                    LIMIT 40
+                    """,
+                    (user_id,),
+                )
+                watched_rows = cur.fetchall()
+
+                cur.execute(
+                    """
+                    SELECT movie_id, rating, created_at
+                    FROM reviews
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 40
+                    """,
+                    (user_id,),
+                )
+                review_rows = cur.fetchall()
+
+        # Seen set = watched ∪ reviewed
+        for mid, _ in watched_rows:
+            seen_ids.add(int(mid))
+        for mid, _rating, _ in review_rows:
+            seen_ids.add(int(mid))
+
+        # Seed movies for similar-item boosts: recent highly-rated first, then recent watched.
+        for idx, (mid, rating, _ts) in enumerate(review_rows):
+            if rating is None or float(rating) < 4.0:
+                continue
+            movie_id = int(mid)
+            if movie_id not in seed_ids:
+                seed_ids.append(movie_id)
+
+            # Genre affinity from high ratings with light recency decay.
+            w = (float(rating) - 3.0) / (1.0 + 0.12 * idx)
+            for genre in self._extract_movie_genres(movie_id):
+                genre_pref[genre] += w
+
+        for idx, (mid, _ts) in enumerate(watched_rows):
+            movie_id = int(mid)
+            if movie_id not in seed_ids:
+                seed_ids.append(movie_id)
+            # Weak positive signal from recent watched actions.
+            w = 0.25 / (1.0 + 0.10 * idx)
+            for genre in self._extract_movie_genres(movie_id):
+                genre_pref[genre] += w
+
+        return {
+            "seen_ids": seen_ids,
+            "seed_ids": seed_ids[:12],
+            "genre_pref": dict(genre_pref),
+        }
+
+    def _build_similar_boost(self, seed_ids: List[int]) -> Dict[int, float]:
+        if not seed_ids:
+            return {}
+
+        sim = get_similarity_service()
+        boost: Dict[int, float] = defaultdict(float)
+
+        for seed_rank, seed_id in enumerate(seed_ids):
+            similar_ids = sim.get_similar_ids(seed_id, n=30)
+            if not similar_ids:
+                continue
+            seed_weight = 1.0 / (1.0 + 0.25 * seed_rank)
+            for rank, cand_id in enumerate(similar_ids, start=1):
+                boost[int(cand_id)] += seed_weight * (1.0 / rank)
+
+        if not boost:
+            return {}
+
+        mx = max(boost.values())
+        if mx <= 0:
+            return {}
+        return {k: v / mx for k, v in boost.items()}
+
+    def _apply_online_post_ranking(
+        self,
+        user_id: int,
+        movies: List[dict],
+        n: int,
+        exclude_seen: bool,
+    ) -> List[dict]:
+        """Cheap quasi-live rerank over static model outputs.
+
+        Strategy:
+          1) Exclude already watched/reviewed items from app DB.
+          2) Boost candidates similar to recent positive interactions.
+          3) Boost candidates matching genres from recent high ratings.
+        """
+        if not movies:
+            return movies
+
+        try:
+            sig = self._load_user_live_signals(user_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Live signals unavailable for user %s: %s", user_id, exc)
+            return movies[:n]
+
+        seen_ids: Set[int] = sig["seen_ids"]
+        seed_ids: List[int] = sig["seed_ids"]
+        genre_pref: Dict[str, float] = sig["genre_pref"]
+
+        filtered = [m for m in movies if int(m.get("id", -1)) not in seen_ids] if exclude_seen else list(movies)
+        if not filtered:
+            return []
+
+        similar_boost = self._build_similar_boost(seed_ids)
+
+        # Genre boost per candidate (normalized later)
+        raw_genre_boost: Dict[int, float] = {}
+        for m in filtered:
+            mid = int(m["id"])
+            genres = self._extract_movie_genres(mid)
+            if not genres:
+                raw_genre_boost[mid] = 0.0
+                continue
+            raw_genre_boost[mid] = sum(genre_pref.get(g, 0.0) for g in genres)
+
+        max_g = max((v for v in raw_genre_boost.values() if v > 0), default=0.0)
+
+        # Normalize base score by min-max to keep boosts impactful regardless of score scale.
+        base_scores = [float(m.get("score", 0.0)) for m in filtered]
+        b_min, b_max = min(base_scores), max(base_scores)
+        b_rng = b_max - b_min
+
+        reranked: List[tuple[float, dict]] = []
+        for m in filtered:
+            mid = int(m["id"])
+            b = float(m.get("score", 0.0))
+            b_norm = (b - b_min) / b_rng if b_rng > 1e-12 else 0.0
+            s_boost = similar_boost.get(mid, 0.0)
+            g_boost = (raw_genre_boost.get(mid, 0.0) / max_g) if max_g > 0 else 0.0
+
+            # Weighted blend tuned for low-risk behaviour shift.
+            online_rank_score = 0.65 * b_norm + 0.25 * s_boost + 0.10 * g_boost
+            reranked.append((online_rank_score, m))
+
+        reranked.sort(key=lambda x: x[0], reverse=True)
+        return [m for _, m in reranked[:n]]
+
     # ── Public interface ──────────────────────────────────────────────────
 
     @property
@@ -175,6 +340,12 @@ class RecommenderService:
                         explain=False,
                     )
                     movies = [self._enrich(r["item_id"], r["score"]) for r in raw]
+                    movies = self._apply_online_post_ranking(
+                        user_id=user_id,
+                        movies=movies,
+                        n=n,
+                        exclude_seen=exclude_seen,
+                    )
                     return movies, "two_stage"
                 else:
                     logger.info("User %d not in training set → popularity fallback.", user_id)
@@ -187,6 +358,12 @@ class RecommenderService:
             # Normalise score field (popularity_score → score)
             for m in pop_movies:
                 m["score"] = m.get("popularity_score", 0.0)
+            pop_movies = self._apply_online_post_ranking(
+                user_id=user_id,
+                movies=pop_movies,
+                n=n,
+                exclude_seen=exclude_seen,
+            )
             return pop_movies, "popularity_fallback"
 
         return [], "popularity_fallback"
