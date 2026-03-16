@@ -8,7 +8,7 @@
  *  - Write/edit review textarea with Save (DB-backed)
  *  - Similar movies row (ALS cosine similarity via /api/movies/{id}/similar)
  */
-import type { Movie } from '@/lib/api'
+import type { Movie, Review } from '@/lib/api'
 import {
 	addWatchedDB,
 	addToWatchlist as apiAddWatchlist,
@@ -25,12 +25,6 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface SavedReview {
-	rating: number
-	review: string
-	savedAt: string
-}
-
 interface SimMovie {
 	id: number
 	title: string
@@ -86,7 +80,7 @@ function SimilarMovieCard({ movie }: { movie: SimMovie }) {
 		fetch(`/api/movies/${movie.id}/details`)
 			.then(r => (r.ok ? r.json() : null))
 			.then(d => d?.poster_url && setPosterUrl(d.poster_url))
-			.catch(() => {})
+			.catch(() => { })
 	}, [movie.id, movie.tmdb_id])
 
 	return (
@@ -170,10 +164,12 @@ export default function MoviePageInteractive({ movie }: Props) {
 	const [userRating, setUserRating] = useState(0)
 	const [review, setReview] = useState('')
 	const [saved, setSaved] = useState(false)
+	const [isSaving, setIsSaving] = useState(false)
+	const [saveError, setSaveError] = useState<string | null>(null)
 	const [loggedIn, setLoggedIn] = useState(false)
 
 	// ── saved reviews list for this movie
-	const [savedReviews, setSavedReviews] = useState<SavedReview[]>([])
+	const [savedReviews, setSavedReviews] = useState<Review[]>([])
 
 	// ── similar movies
 	const [similar, setSimilar] = useState<SimMovie[]>([])
@@ -191,7 +187,10 @@ export default function MoviePageInteractive({ movie }: Props) {
 	// ── Init from DB
 	useEffect(() => {
 		const token = getToken()
-		if (!token) return
+		if (!token) {
+			setSavedReviews([])
+			return
+		}
 		// Watched + Watchlist + own review from DB
 		fetchWatched(token).then(wl => {
 			setWatched(wl.some(w => w.movie_id === movie.id))
@@ -200,7 +199,15 @@ export default function MoviePageInteractive({ movie }: Props) {
 			setInWatchlist(wl.some(w => w.movie_id === movie.id))
 		})
 		fetchReviews(token).then(all => {
-			const mine = all.find(r => r.movie_id === movie.id)
+			const movieReviews = all
+				.filter(r => r.movie_id === movie.id)
+				.sort(
+					(a, b) =>
+						new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+				)
+			setSavedReviews(movieReviews)
+
+			const mine = movieReviews[0]
 			if (mine) {
 				setUserRating(mine.rating)
 				setReview(mine.review_text ?? '')
@@ -215,14 +222,31 @@ export default function MoviePageInteractive({ movie }: Props) {
 				setSimilar(movies)
 				setSimilarModel(model)
 			})
-			.catch(() => {})
+			.catch(() => { })
 	}, [movie.id])
 
 	// ── Save review
 	const handleSave = async () => {
 		const token = getToken()
 		if (!token) return
-		await upsertReview(token, movie.id, movie.title, userRating, review)
+		if (userRating < 1 || userRating > 5) {
+			setSaveError('Please select a rating from 1 to 5 stars before saving.')
+			return
+		}
+
+		setIsSaving(true)
+		setSaveError(null)
+		const savedReview = await upsertReview(token, movie.id, movie.title, userRating, review)
+		if (!savedReview) {
+			setIsSaving(false)
+			setSaveError('Could not save review. Please try again or re-login.')
+			return
+		}
+
+		setSavedReviews([savedReview])
+		setUserRating(savedReview.rating)
+		setReview(savedReview.review_text ?? '')
+		setIsSaving(false)
 		setSaved(true)
 		setTimeout(() => setSaved(false), 2000)
 	}
@@ -390,16 +414,19 @@ export default function MoviePageInteractive({ movie }: Props) {
 						<div className='flex items-center gap-3 mt-3'>
 							<button
 								onClick={handleSave}
-								disabled={userRating === 0 && review.trim() === ''}
+								disabled={isSaving || userRating === 0}
 								className='px-6 py-2 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
 								style={{ background: 'var(--netflix-red)' }}
 							>
-								Save
+								{isSaving ? 'Saving...' : 'Save'}
 							</button>
 							{saved && (
 								<span className='text-sm text-green-400 animate-pulse'>
 									Saved!
 								</span>
+							)}
+							{saveError && (
+								<span className='text-sm text-red-400'>{saveError}</span>
 							)}
 						</div>
 					</>
@@ -411,7 +438,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 			{/* ── Community reviews ────────────────────────────────────────── */}
 			<div>
 				<h2 className='text-lg font-bold text-white mb-4'>
-					Reviews
+					Saved reviews
 					{savedReviews.length > 0 && (
 						<span className='ml-2 text-sm font-normal text-zinc-500'>
 							({savedReviews.length})
@@ -432,7 +459,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 					<div className='flex flex-col gap-4'>
 						{savedReviews.map((r, i) => (
 							<div
-								key={i}
+								key={r.id}
 								className='rounded-2xl px-6 py-4 flex flex-col gap-2'
 								style={{
 									background: 'rgba(255,255,255,0.03)',
@@ -452,16 +479,16 @@ export default function MoviePageInteractive({ movie }: Props) {
 										<StarRating value={r.rating} size='sm' />
 									</div>
 									<span className='text-xs text-zinc-500'>
-										{new Date(r.savedAt).toLocaleDateString('en-US', {
+										{new Date(r.created_at).toLocaleDateString('en-US', {
 											month: 'short',
 											day: 'numeric',
 											year: 'numeric',
 										})}
 									</span>
 								</div>
-								{r.review.trim() && (
+								{r.review_text?.trim() && (
 									<p className='text-sm text-zinc-300 leading-relaxed pl-11'>
-										{r.review}
+										{r.review_text}
 									</p>
 								)}
 							</div>

@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - '5432:5432'
+      - '5434:5432'
     environment:
       - POSTGRES_USER=recsys
       - POSTGRES_PASSWORD=recsys_secret
@@ -13,7 +13,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U recsys -d recsys']
+      test: [ 'CMD-SHELL', 'pg_isready -U recsys -d recsys' ]
       interval: 10s
       timeout: 5s
       retries: 5

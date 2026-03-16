@@ -64,6 +64,8 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	const [userRating, setUserRating] = useState(0)
 	const [review, setReview] = useState('')
 	const [saved, setSaved] = useState(false)
+	const [isSaving, setIsSaving] = useState(false)
+	const [saveError, setSaveError] = useState<string | null>(null)
 	const [watched, setWatched] = useState(false)
 	const [inWatchlist, setInWatchlist] = useState(false)
 	const loggedIn = isLoggedIn()
@@ -114,7 +116,23 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	const handleSave = async () => {
 		const token = getToken()
 		if (!token) return
-		await upsertReview(token, movie.id, movie.title, userRating, review)
+		if (userRating < 1 || userRating > 5) {
+			setSaveError('Please select a rating from 1 to 5 stars before saving.')
+			return
+		}
+
+		setIsSaving(true)
+		setSaveError(null)
+		const savedReview = await upsertReview(token, movie.id, movie.title, userRating, review)
+		if (!savedReview) {
+			setIsSaving(false)
+			setSaveError('Could not save review. Please try again or re-login.')
+			return
+		}
+
+		setUserRating(savedReview.rating)
+		setReview(savedReview.review_text ?? '')
+		setIsSaving(false)
 		setSaved(true)
 		setTimeout(() => {
 			setSaved(false)
@@ -405,16 +423,19 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 									<div className='flex items-center gap-2'>
 										<button
 											onClick={handleSave}
-											disabled={userRating === 0 && review.trim() === ''}
+											disabled={isSaving || userRating === 0}
 											className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
 											style={{ background: 'var(--netflix-red)' }}
 										>
-											Save
+											{isSaving ? 'Saving...' : 'Save'}
 										</button>
 										{saved && (
 											<span className='text-sm text-green-400 animate-pulse'>
 												Saved!
 											</span>
+										)}
+										{saveError && (
+											<span className='text-sm text-red-400'>{saveError}</span>
 										)}
 									</div>
 									{/* Right: external links */}

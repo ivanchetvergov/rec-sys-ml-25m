@@ -12,6 +12,12 @@ const API_URL =
 		? (process.env.BACKEND_INTERNAL_URL ?? 'http://localhost:8000') // server-side
 		: (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost') // client-side
 
+async function handleUnauthorized(res: Response): Promise<void> {
+	if (res.status !== 401 || typeof window === 'undefined') return
+	const { clearAuth } = await import('./authStore')
+	clearAuth()
+}
+
 export interface Movie {
 	id: number
 	title: string
@@ -262,7 +268,10 @@ export async function fetchWatchlist(token: string): Promise<WatchlistItem[]> {
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
-		if (!res.ok) return []
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return []
+		}
 		return res.json()
 	} catch {
 		return []
@@ -293,7 +302,10 @@ export async function addToWatchlist(
 			}),
 			cache: 'no-store',
 		})
-		if (!res.ok) return null
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return null
+		}
 		return res.json()
 	} catch {
 		return null
@@ -310,6 +322,7 @@ export async function removeFromWatchlist(
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
+		await handleUnauthorized(res)
 		return res.ok
 	} catch {
 		return false
@@ -334,7 +347,10 @@ export async function fetchReviews(token: string): Promise<Review[]> {
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
-		if (!res.ok) return []
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return []
+		}
 		return res.json()
 	} catch {
 		return []
@@ -348,6 +364,10 @@ export async function upsertReview(
 	rating: number,
 	reviewText: string,
 ): Promise<Review | null> {
+	if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+		return null
+	}
+
 	try {
 		const res = await fetch(`${API_URL}/api/reviews`, {
 			method: 'POST',
@@ -359,11 +379,14 @@ export async function upsertReview(
 				movie_id: movieId,
 				title,
 				rating,
-				review_text: reviewText,
+				review_text: reviewText.trim() || null,
 			}),
 			cache: 'no-store',
 		})
-		if (!res.ok) return null
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return null
+		}
 		return res.json()
 	} catch {
 		return null
@@ -380,6 +403,7 @@ export async function deleteReview(
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
+		await handleUnauthorized(res)
 		return res.ok
 	} catch {
 		return false
@@ -409,7 +433,10 @@ export async function fetchWatched(token: string): Promise<WatchedItem[]> {
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
-		if (!res.ok) return []
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return []
+		}
 		return res.json()
 	} catch {
 		return []
@@ -440,7 +467,10 @@ export async function addWatchedDB(
 			}),
 			cache: 'no-store',
 		})
-		if (!res.ok) return null
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return null
+		}
 		return res.json()
 	} catch {
 		return null
@@ -457,6 +487,7 @@ export async function removeWatchedDB(
 			headers: { Authorization: `Bearer ${token}` },
 			cache: 'no-store',
 		})
+		await handleUnauthorized(res)
 		return res.ok
 	} catch {
 		return false

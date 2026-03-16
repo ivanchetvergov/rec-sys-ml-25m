@@ -23,10 +23,43 @@ export interface StoredAccount {
 	user: AuthUser
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+	try {
+		const parts = token.split('.')
+		if (parts.length < 2) return null
+		const payload = parts[1]
+		const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+		const json = decodeURIComponent(
+			atob(base64)
+				.split('')
+				.map(c => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+				.join(''),
+		)
+		return JSON.parse(json) as Record<string, unknown>
+	} catch {
+		return null
+	}
+}
+
+function isTokenExpired(token: string): boolean {
+	const payload = decodeJwtPayload(token)
+	if (!payload) return true
+	const exp = payload.exp
+	if (typeof exp !== 'number') return true
+	const nowSec = Math.floor(Date.now() / 1000)
+	return exp <= nowSec
+}
+
 // ── Active session ─────────────────────────────────────────────────────────────
 export function getToken(): string | null {
 	if (typeof window === 'undefined') return null
-	return localStorage.getItem(TOKEN_KEY)
+	const token = localStorage.getItem(TOKEN_KEY)
+	if (!token) return null
+	if (isTokenExpired(token)) {
+		clearAuth()
+		return null
+	}
+	return token
 }
 
 export function getAuthUser(): AuthUser | null {
