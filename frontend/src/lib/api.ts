@@ -185,6 +185,7 @@ export interface AuthUser {
 	login: string
 	email: string
 	role: string
+	is_profile_private?: boolean
 	created_at: string
 }
 
@@ -399,6 +400,10 @@ export interface PublicUserProfile {
 	reviews: PublicProfileReviewItem[]
 }
 
+export interface ProfilePrivacy {
+	is_profile_private: boolean
+}
+
 export async function fetchReviews(token: string): Promise<Review[]> {
 	try {
 		const res = await fetch(`${API_URL}/api/reviews`, {
@@ -442,6 +447,48 @@ export async function fetchPublicUserProfile(
 			{ cache: 'no-store' },
 		)
 		if (!res.ok) return null
+		return res.json()
+	} catch {
+		return null
+	}
+}
+
+export async function fetchMyProfilePrivacy(
+	token: string,
+): Promise<ProfilePrivacy | null> {
+	try {
+		const res = await fetch(`${API_URL}/api/users/me/privacy`, {
+			headers: { Authorization: `Bearer ${token}` },
+			cache: 'no-store',
+		})
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return null
+		}
+		return res.json()
+	} catch {
+		return null
+	}
+}
+
+export async function updateMyProfilePrivacy(
+	token: string,
+	isProfilePrivate: boolean,
+): Promise<ProfilePrivacy | null> {
+	try {
+		const res = await fetch(`${API_URL}/api/users/me/privacy`, {
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ is_profile_private: isProfilePrivate }),
+			cache: 'no-store',
+		})
+		if (!res.ok) {
+			await handleUnauthorized(res)
+			return null
+		}
 		return res.json()
 	} catch {
 		return null

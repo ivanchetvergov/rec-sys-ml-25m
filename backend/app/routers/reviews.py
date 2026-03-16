@@ -103,6 +103,24 @@ def upsert_review(body: ReviewUpsertRequest, user: dict = Depends(get_current_us
                 (user["id"], body.movie_id, body.title, body.rating, body.review_text),
             )
             row = cur.fetchone()
+
+            # Rating/review implies the movie is watched.
+            cur.execute(
+                """
+                INSERT INTO watched (user_id, movie_id, title)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, movie_id) DO UPDATE
+                    SET title = EXCLUDED.title,
+                        watched_at = now()
+                """,
+                (user["id"], body.movie_id, body.title),
+            )
+
+            # Once rated, it should not remain in watchlist.
+            cur.execute(
+                "DELETE FROM watchlist WHERE user_id = %s AND movie_id = %s",
+                (user["id"], body.movie_id),
+            )
     return ReviewOut.from_row(dict(row))
 
 

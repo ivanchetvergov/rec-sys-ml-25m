@@ -47,7 +47,7 @@ def create_user(conn, login: str, email: str, password_hash: str) -> dict:
             """
             INSERT INTO users (login, email, password_hash, role)
             VALUES (%s, %s, %s, 'user')
-            RETURNING id, login, email, role, created_at
+            RETURNING id, login, email, role, is_profile_private, created_at
             """,
             (login, email, password_hash),
         )

@@ -21,7 +21,11 @@ import {
 	removeWatchedDB,
 	upsertReview,
 } from '@/lib/api'
-import { isLoggedIn as checkIsLoggedIn, getToken } from '@/lib/authStore'
+import {
+	isLoggedIn as checkIsLoggedIn,
+	getAuthUser,
+	getToken,
+} from '@/lib/authStore'
 import { AvatarIcon } from '@/lib/avatars'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -169,6 +173,9 @@ export default function MoviePageInteractive({ movie }: Props) {
 	const [isSaving, setIsSaving] = useState(false)
 	const [saveError, setSaveError] = useState<string | null>(null)
 	const [loggedIn, setLoggedIn] = useState(false)
+	const [currentUserId, setCurrentUserId] = useState<number | null>(
+		getAuthUser()?.id ?? null,
+	)
 
 	// ── public movie reviews (all users)
 	const [communityReviews, setCommunityReviews] = useState<PublicMovieReview[]>([])
@@ -181,7 +188,11 @@ export default function MoviePageInteractive({ movie }: Props) {
 	// ── Auth state sync
 	useEffect(() => {
 		setLoggedIn(checkIsLoggedIn())
-		const sync = () => setLoggedIn(checkIsLoggedIn())
+		setCurrentUserId(getAuthUser()?.id ?? null)
+		const sync = () => {
+			setLoggedIn(checkIsLoggedIn())
+			setCurrentUserId(getAuthUser()?.id ?? null)
+		}
 		window.addEventListener('auth-change', sync)
 		return () => window.removeEventListener('auth-change', sync)
 	}, [])
@@ -189,9 +200,11 @@ export default function MoviePageInteractive({ movie }: Props) {
 	// ── Init from DB
 	useEffect(() => {
 		const token = getToken()
+		setUserRating(0)
+		setReview('')
 		if (!token) {
-			setUserRating(0)
-			setReview('')
+			setWatched(false)
+			setInWatchlist(false)
 			return
 		}
 		// Watched + Watchlist + own review from DB
@@ -213,6 +226,9 @@ export default function MoviePageInteractive({ movie }: Props) {
 			if (mine) {
 				setUserRating(mine.rating)
 				setReview(mine.review_text ?? '')
+			} else {
+				setUserRating(0)
+				setReview('')
 			}
 		})
 	}, [movie.id])
@@ -251,6 +267,8 @@ export default function MoviePageInteractive({ movie }: Props) {
 
 		setUserRating(savedReview.rating)
 		setReview(savedReview.review_text ?? '')
+		setWatched(true)
+		setInWatchlist(false)
 		fetchMovieReviews(movie.id, 30).then(setCommunityReviews)
 		setIsSaving(false)
 		setSaved(true)
@@ -482,7 +500,11 @@ export default function MoviePageInteractive({ movie }: Props) {
 										</div>
 										<div className='flex flex-col gap-0.5'>
 											<Link
-												href={`/profile/${r.user_id}`}
+												href={
+													r.user_id === currentUserId
+														? '/profile'
+														: `/profile/${r.user_id}`
+												}
 												className='text-sm text-zinc-200 font-medium hover:underline'
 											>
 												{r.user_login}

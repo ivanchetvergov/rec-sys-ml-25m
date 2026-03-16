@@ -45,6 +45,7 @@ class UserOut(BaseModel):
     login: str
     email: str
     role: str
+    is_profile_private: bool = False
     created_at: str
 
     @classmethod
@@ -54,6 +55,7 @@ class UserOut(BaseModel):
             login=row["login"],
             email=row["email"],
             role=row["role"],
+            is_profile_private=bool(row.get("is_profile_private", False)),
             created_at=str(row["created_at"]),
         )
 

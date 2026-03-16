@@ -3,10 +3,12 @@
 import type { Movie, Review, WatchedItem, WatchlistItem } from '@/lib/api'
 import {
 	removeFromWatchlist as apiRemoveWatchlist,
+	fetchMyProfilePrivacy,
 	fetchReviews,
 	fetchWatched,
 	fetchWatchlist,
 	removeWatchedDB,
+	updateMyProfilePrivacy,
 } from '@/lib/api'
 import {
 	getAuthUser,
@@ -353,6 +355,8 @@ export default function ProfilePage() {
 	const [ready, setReady] = useState(false)
 	const [authUser, setAuthUser] = useState(getAuthUser())
 	const [avatarId, setAvatarId] = useState<AvatarId | null>(getCurrentAvatar())
+	const [isProfilePrivate, setIsProfilePrivate] = useState(false)
+	const [privacySaving, setPrivacySaving] = useState(false)
 
 	useEffect(() => {
 		const sync = () => {
@@ -377,13 +381,26 @@ export default function ProfilePage() {
 			fetchWatched(token),
 			fetchWatchlist(token),
 			fetchReviews(token),
-		]).then(([wd, wl, rv]) => {
+			fetchMyProfilePrivacy(token),
+		]).then(([wd, wl, rv, privacy]) => {
 			setWatched(wd)
 			setWatchlist(wl)
 			setReviews(rv)
+			setIsProfilePrivate(privacy?.is_profile_private ?? false)
 			setReady(true)
 		})
 	}, [])
+
+	async function handlePrivacyToggle() {
+		const token = getToken()
+		if (!token || privacySaving) return
+		setPrivacySaving(true)
+		const updated = await updateMyProfilePrivacy(token, !isProfilePrivate)
+		if (updated) {
+			setIsProfilePrivate(updated.is_profile_private)
+		}
+		setPrivacySaving(false)
+	}
 
 	async function handleRemoveWatched(movieId: number) {
 		const token = getToken()
@@ -442,18 +459,50 @@ export default function ProfilePage() {
 			<div className='relative max-w-5xl mx-auto flex flex-col gap-6'>
 				{/* ── User greeting ──────────────────────────────────────── */}
 				{authUser && (
-					<div className='flex items-center gap-4 mb-2'>
-						<div
-							className='w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden'
-							style={{ background: 'rgba(255,255,255,0.06)' }}
-						>
-							{avatarId ? <AvatarIcon avatarId={avatarId} size={52} /> : null}
+					<div
+						className='rounded-2xl p-5 flex items-center justify-between gap-4 mb-2'
+						style={{
+							background: 'var(--bg-card)',
+							border: '1px solid rgba(255,255,255,0.07)',
+						}}
+					>
+						<div className='flex items-center gap-4'>
+							<div
+								className='w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden'
+								style={{ background: 'rgba(255,255,255,0.06)' }}
+							>
+								{avatarId ? <AvatarIcon avatarId={avatarId} size={52} /> : null}
+							</div>
+							<div>
+								<h1 className='text-2xl font-black text-white'>
+									{authUser.login}
+								</h1>
+								<p className='text-sm text-zinc-500'>{authUser.email}</p>
+							</div>
 						</div>
 						<div>
-							<h1 className='text-2xl font-black text-white'>
-								{authUser.login}
-							</h1>
-							<p className='text-sm text-zinc-500'>{authUser.email}</p>
+							<button
+								type='button'
+								onClick={handlePrivacyToggle}
+								disabled={privacySaving}
+								className='px-4 py-2 rounded-full text-xs font-bold transition-opacity disabled:opacity-50'
+								style={{
+									background: isProfilePrivate
+										? 'rgba(229,9,20,0.16)'
+										: 'rgba(46,160,67,0.16)',
+									border: `1px solid ${isProfilePrivate
+											? 'rgba(229,9,20,0.45)'
+											: 'rgba(46,160,67,0.45)'
+										}`,
+									color: isProfilePrivate ? '#f87171' : '#4ade80',
+								}}
+							>
+								{privacySaving
+									? 'Saving...'
+									: isProfilePrivate
+										? 'Profile: Private'
+										: 'Profile: Public'}
+							</button>
 						</div>
 					</div>
 				)}

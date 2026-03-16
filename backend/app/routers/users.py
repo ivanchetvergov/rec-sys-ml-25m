@@ -1,10 +1,11 @@
 """Public users router — read-only profile data for user pages."""
 
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core.db import get_connection
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -62,6 +63,14 @@ class PublicUserProfile(BaseModel):
     reviews: list[PublicUserReview]
 
 
+class ProfilePrivacyOut(BaseModel):
+    is_profile_private: bool
+
+
+class ProfilePrivacyUpdateRequest(BaseModel):
+    is_profile_private: bool
+
+
 @router.get("/{user_id}/profile", response_model=PublicUserProfile)
 def get_public_user_profile(
     user_id: int,
@@ -69,10 +78,15 @@ def get_public_user_profile(
 ):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT id, login FROM users WHERE id = %s", (user_id,))
+            cur.execute(
+                "SELECT id, login, is_profile_private FROM users WHERE id = %s",
+                (user_id,),
+            )
             user_row = cur.fetchone()
             if not user_row:
                 raise HTTPException(status_code=404, detail="User not found")
+            if bool(user_row.get("is_profile_private", False)):
+                raise HTTPException(status_code=403, detail="Profile is private")
 
             cur.execute("SELECT COUNT(*) AS c FROM watched WHERE user_id = %s", (user_id,))
             watched_count = int(cur.fetchone()["c"])
@@ -180,3 +194,36 @@ def get_public_user_profile(
         watchlist=watchlist,
         reviews=reviews,
     )
+
+
+@router.get("/me/privacy", response_model=ProfilePrivacyOut)
+def get_my_profile_privacy(user: dict = Depends(get_current_user)):
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT is_profile_private FROM users WHERE id = %s", (user["id"],))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+    return ProfilePrivacyOut(is_profile_private=bool(row["is_profile_private"]))
+
+
+@router.put("/me/privacy", response_model=ProfilePrivacyOut)
+def update_my_profile_privacy(
+    body: ProfilePrivacyUpdateRequest,
+    user: dict = Depends(get_current_user),
+):
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET is_profile_private = %s
+                WHERE id = %s
+                RETURNING is_profile_private
+                """,
+                (body.is_profile_private, user["id"]),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+    return ProfilePrivacyOut(is_profile_private=bool(row["is_profile_private"]))

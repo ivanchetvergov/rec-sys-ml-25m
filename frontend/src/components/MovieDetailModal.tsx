@@ -81,14 +81,29 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 	// Load saved review + watchlist + watched state from DB (if logged in)
 	useEffect(() => {
 		const token = getToken()
-		if (!token) return
+		setUserRating(0)
+		setReview('')
+		if (!token) {
+			setWatched(false)
+			setInWatchlist(false)
+			return
+		}
 		import('@/lib/api').then(
 			({ fetchReviews, fetchWatchlist, fetchWatched }) => {
 				fetchReviews(token).then(all => {
-					const mine = all.find(r => r.movie_id === movie.id)
+					const mine = all
+						.filter(r => r.movie_id === movie.id)
+						.sort(
+							(a, b) =>
+								new Date(b.created_at).getTime() -
+								new Date(a.created_at).getTime(),
+						)[0]
 					if (mine) {
 						setUserRating(mine.rating)
 						setReview(mine.review_text ?? '')
+					} else {
+						setUserRating(0)
+						setReview('')
 					}
 				})
 				fetchWatchlist(token).then(wl => {
@@ -132,6 +147,8 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 
 		setUserRating(savedReview.rating)
 		setReview(savedReview.review_text ?? '')
+		setWatched(true)
+		setInWatchlist(false)
 		setIsSaving(false)
 		setSaved(true)
 		setTimeout(() => {
