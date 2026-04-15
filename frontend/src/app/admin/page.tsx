@@ -16,6 +16,7 @@ import {
 	fetchAdminUsers,
 } from '@/lib/api'
 import { getAuthUser, getToken, isLoggedIn } from '@/lib/authStore'
+import { useTranslation } from '@/lib/useTranslation'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -183,6 +184,7 @@ function StatCard({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
+	const { tr } = useTranslation()
 	const router = useRouter()
 	const [allowed, setAllowed] = useState(false)
 	const [token, setToken] = useState<string | null>(null)
@@ -260,10 +262,10 @@ export default function AdminPage() {
 		)
 
 	const CHART_OPTIONS = [
-		{ key: 'new_watched' as const, label: 'Watched', color: '#e50914' },
-		{ key: 'new_reviews' as const, label: 'Reviews', color: '#f59e0b' },
-		{ key: 'new_users' as const, label: 'Users', color: '#3b82f6' },
-		{ key: 'new_watchlist' as const, label: 'Watchlist', color: '#10b981' },
+		{ key: 'new_watched' as const, label: tr.admin.colWatched, color: '#e50914' },
+		{ key: 'new_reviews' as const, label: tr.admin.colReviews, color: '#f59e0b' },
+		{ key: 'new_users' as const, label: tr.admin.users, color: '#3b82f6' },
+		{ key: 'new_watchlist' as const, label: tr.admin.colWatchlist, color: '#10b981' },
 	]
 	const activeChart = CHART_OPTIONS.find(o => o.key === chartKey)!
 
@@ -299,7 +301,7 @@ export default function AdminPage() {
 						</svg>
 					</div>
 					<div>
-						<h1 className='text-2xl font-black text-white'>Admin Dashboard</h1>
+						<h1 className='text-2xl font-black text-white'>{tr.admin.heading}</h1>
 						<p className='text-sm text-zinc-500'>
 							User activity & platform metrics
 						</p>
@@ -317,7 +319,7 @@ export default function AdminPage() {
 							<StatCard
 								label='Total Users'
 								value={overview?.total_users ?? 0}
-								sub={`+${overview?.users_today ?? 0} today`}
+								sub={tr.admin.today(overview?.users_today ?? 0)}
 								accent='#e50914'
 							/>
 							<StatCard
@@ -337,7 +339,7 @@ export default function AdminPage() {
 							<StatCard
 								label='Watchlist Adds'
 								value={overview?.total_watchlist ?? 0}
-								sub={`${overview?.active_today ?? 0} active today`}
+								sub={tr.admin.activeToday(overview?.active_today ?? 0)}
 								accent='#10b981'
 							/>
 						</div>
@@ -346,13 +348,13 @@ export default function AdminPage() {
 							<StatCard
 								label='KPI: Rec CTR (7d)'
 								value={`${(kpi?.rec_ctr_percent ?? 0).toFixed(2)}%`}
-								sub={`${kpi?.rec_impressions ?? 0} impressions`}
+								sub={tr.admin.impressions(kpi?.rec_impressions ?? 0)}
 								accent='#60a5fa'
 							/>
 							<StatCard
 								label='KPI: Sessions With Feedback (7d)'
 								value={`${(kpi?.feedback_session_share_percent ?? 0).toFixed(2)}%`}
-								sub={`${kpi?.sessions_started ?? 0} sessions`}
+								sub={tr.admin.sessions(kpi?.sessions_started ?? 0)}
 								accent='#22c55e'
 							/>
 						</div>
@@ -368,9 +370,9 @@ export default function AdminPage() {
 							<div className='flex flex-wrap items-center justify-between gap-4 mb-5'>
 								<div>
 									<h2 className='text-base font-bold text-white'>
-										Activity Over Time
+										{tr.admin.activityChart}
 									</h2>
-									<p className='text-xs text-zinc-500'>Daily platform events</p>
+									<p className='text-xs text-zinc-500'>{tr.admin.activityDesc}</p>
 								</div>
 								<div className='flex items-center gap-3'>
 									{/* Metric selector */}
@@ -471,7 +473,7 @@ export default function AdminPage() {
 										</div>
 									))}
 									{!topMovies?.top_rated.length && (
-										<p className='text-sm text-zinc-600'>No reviews yet</p>
+										<p className='text-sm text-zinc-600'>{tr.admin.noReviews}</p>
 									)}
 								</div>
 							</div>
@@ -621,7 +623,7 @@ export default function AdminPage() {
 													colSpan={7}
 													className='px-5 py-10 text-center text-zinc-600'
 												>
-													No users yet
+													{tr.admin.noUsers}
 												</td>
 											</tr>
 										)}

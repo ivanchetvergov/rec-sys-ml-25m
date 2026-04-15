@@ -3,6 +3,9 @@
 All endpoints require admin role.
 Data is read directly via SQL aggregations — no separate event tracking needed
 since users/watched/reviews/watchlist tables have timestamps.
+
+Movie titles are looked up from PopularityService (movies.parquet), not from
+the interaction tables (which no longer store movie metadata after migration 009).
 """
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.db import get_connection
 from app.routers.auth import get_current_user
+from app.services.popularity_service import PopularityService, get_popularity_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -107,30 +111,38 @@ def stats_daily(
 def stats_top_movies(
     limit: int = Query(8, ge=1, le=20),
     _admin: dict = Depends(require_admin),
+    pop_svc: PopularityService = Depends(get_popularity_service),
 ):
-    """Most watched and highest-rated movies."""
-    most_watched = _query("""
-        SELECT movie_id, title, COUNT(*) AS watch_count
+    """Most watched and highest-rated movies, with titles from the feature store."""
+    most_watched_raw = _query("""
+        SELECT movie_id, COUNT(*) AS watch_count
         FROM watched
-        WHERE title IS NOT NULL
-        GROUP BY movie_id, title
+        GROUP BY movie_id
         ORDER BY watch_count DESC
         LIMIT %s
     """, (limit,))
 
-    top_rated = _query("""
-        SELECT movie_id, title,
+    top_rated_raw = _query("""
+        SELECT movie_id,
                ROUND(AVG(rating)::numeric, 2) AS avg_rating,
                COUNT(*) AS review_count
         FROM reviews
-        WHERE title IS NOT NULL
-        GROUP BY movie_id, title
+        GROUP BY movie_id
         HAVING COUNT(*) >= 1
         ORDER BY avg_rating DESC, review_count DESC
         LIMIT %s
     """, (limit,))
 
-    return {"most_watched": most_watched, "top_rated": top_rated}
+    def _with_title(rows: list[dict]) -> list[dict]:
+        return [
+            {**r, "title": (pop_svc.get_movie(r["movie_id"]) or {}).get("title")}
+            for r in rows
+        ]
+
+    return {
+        "most_watched": _with_title(most_watched_raw),
+        "top_rated": _with_title(top_rated_raw),
+    }
 
 
 @router.get("/stats/rating-distribution")

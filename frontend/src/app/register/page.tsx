@@ -2,12 +2,14 @@
 
 import { registerUser } from '@/lib/api'
 import { setAuth } from '@/lib/authStore'
+import { useTranslation } from '@/lib/useTranslation'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function RegisterPage() {
 	const router = useRouter()
+	const { tr } = useTranslation()
 	const [username, setUsername] = useState('')
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
@@ -80,9 +82,9 @@ export default function RegisterPage() {
 					</Link>
 				</div>
 
-				<h1 className='text-3xl font-bold text-white mb-2'>Create Account</h1>
+				<h1 className='text-3xl font-bold text-white mb-2'>{tr.register.heading}</h1>
 				<p className='text-zinc-400 text-sm mb-8'>
-					Already have an account?{' '}
+					{tr.register.alreadyHave}{' '}
 					<Link
 						href='/login'
 						className='text-white hover:underline font-medium'
@@ -102,7 +104,7 @@ export default function RegisterPage() {
 							autoComplete='username'
 							value={username}
 							onChange={e => setUsername(e.target.value)}
-							placeholder='johndoe'
+							placeholder={tr.register.usernamePlaceholder}
 							required
 							className={inputClass('username')}
 						/>
@@ -121,7 +123,7 @@ export default function RegisterPage() {
 							autoComplete='email'
 							value={email}
 							onChange={e => setEmail(e.target.value)}
-							placeholder='you@example.com'
+							placeholder={tr.register.emailPlaceholder}
 							required
 							className={inputClass('email')}
 						/>
@@ -140,7 +142,7 @@ export default function RegisterPage() {
 							autoComplete='new-password'
 							value={password}
 							onChange={e => setPassword(e.target.value)}
-							placeholder='min. 6 characters'
+							placeholder={tr.register.passwordPlaceholder}
 							required
 							className={inputClass('password')}
 						/>
@@ -203,20 +205,20 @@ export default function RegisterPage() {
 										d='M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z'
 									/>
 								</svg>
-								Creating account…
+								{tr.register.creating}
 							</span>
 						) : (
-							'Create Account'
+							tr.register.submit
 						)}
 					</button>
 				</form>
 
 				<p className='mt-6 text-center text-xs text-zinc-600'>
-					By registering, you agree to our{' '}
+					{tr.register.legalText}{' '}
 					<span className='text-zinc-400 hover:underline cursor-pointer'>
 						Terms of Use
 					</span>{' '}
-					and{' '}
+					{tr.register.and}{' '}
 					<span className='text-zinc-400 hover:underline cursor-pointer'>
 						Privacy Policy
 					</span>

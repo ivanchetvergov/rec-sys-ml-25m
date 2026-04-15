@@ -16,6 +16,7 @@ import {
 	getToken,
 } from '@/lib/authStore'
 import { AvatarIcon, type AvatarId } from '@/lib/avatars'
+import { useTranslation } from '@/lib/useTranslation'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
@@ -353,6 +354,7 @@ function WatchedCard({
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
+	const { tr, lang } = useTranslation()
 	const [watched, setWatched] = useState<WatchedItem[]>([])
 	const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
 	const [reviews, setReviews] = useState<Review[]>([])
@@ -502,10 +504,10 @@ export default function ProfilePage() {
 								}}
 							>
 								{privacySaving
-									? 'Saving...'
+									? tr.profile.saving
 									: isProfilePrivate
-										? 'Profile: Private'
-										: 'Profile: Public'}
+										? tr.profile.profilePrivate
+										: tr.profile.profilePublic}
 							</button>
 						</div>
 					</div>
@@ -530,7 +532,7 @@ export default function ProfilePage() {
 									/>
 								</svg>
 							),
-							label: 'Watched',
+							label: tr.profile.watched,
 							value: watched.length,
 						},
 						{
@@ -549,7 +551,7 @@ export default function ProfilePage() {
 									/>
 								</svg>
 							),
-							label: 'Watchlist',
+							label: tr.profile.watchlist,
 							value: watchlist.length,
 						},
 						{
@@ -568,7 +570,7 @@ export default function ProfilePage() {
 									/>
 								</svg>
 							),
-							label: 'Rated',
+							label: tr.profile.rated,
 							value: totalRated,
 						},
 						{
@@ -587,7 +589,7 @@ export default function ProfilePage() {
 									/>
 								</svg>
 							),
-							label: 'Reviews',
+							label: tr.profile.reviews,
 							value: totalReviews,
 						},
 					].map(s => (
@@ -608,7 +610,7 @@ export default function ProfilePage() {
 
 				{/* ── Watched ────────────────────────────────────────────── */}
 				<Section
-					title='Watched'
+					title={tr.profile.watched}
 					icon={
 						<svg
 							className='w-5 h-5'
@@ -642,9 +644,9 @@ export default function ProfilePage() {
 										d='M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z'
 									/>
 								</svg>
-								<p className='text-zinc-400 text-sm'>No watched movies yet</p>
+								<p className='text-zinc-400 text-sm'>{tr.profile.noWatched}</p>
 								<p className='text-zinc-600 text-xs'>
-									Open any movie and click "Watched"
+									{tr.profile.noWatchedHint}
 								</p>
 							</>
 						}
@@ -661,7 +663,7 @@ export default function ProfilePage() {
 
 				{/* ── Watchlist ──────────────────────────────────────────── */}
 				<Section
-					title='Watchlist'
+					title={tr.profile.watchlist}
 					icon={
 						<svg
 							className='w-5 h-5'
@@ -695,9 +697,9 @@ export default function ProfilePage() {
 										d='M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z'
 									/>
 								</svg>
-								<p className='text-zinc-400 text-sm'>Your watchlist is empty</p>
+								<p className='text-zinc-400 text-sm'>{tr.profile.noWatchlist}</p>
 								<p className='text-zinc-600 text-xs'>
-									Open any movie and click "Watchlist"
+									{tr.profile.noWatchlistHint}
 								</p>
 							</>
 						}
@@ -724,7 +726,7 @@ export default function ProfilePage() {
 
 				{/* ── Ratings & Reviews ──────────────────────────────────── */}
 				<Section
-					title='Ratings & Reviews'
+					title={tr.profile.reviews}
 					icon={
 						<svg
 							className='w-5 h-5'
@@ -763,9 +765,9 @@ export default function ProfilePage() {
 									d='M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125'
 								/>
 							</svg>
-							<p className='text-zinc-400 text-sm'>No ratings yet</p>
+							<p className='text-zinc-400 text-sm'>{tr.profile.noRatings}</p>
 							<p className='text-zinc-600 text-xs'>
-								Rate movies to see them here
+								{tr.profile.noRatingsHint}
 							</p>
 						</div>
 					) : (
@@ -782,7 +784,7 @@ export default function ProfilePage() {
 									<div className='text-3xl font-black text-white'>
 										{avgRating}
 									</div>
-									<div className='text-xs text-zinc-500 mt-0.5'>avg rating</div>
+									<div className='text-xs text-zinc-500 mt-0.5'>{tr.profile.avgRating}</div>
 								</div>
 								<div
 									className='w-px h-10'
@@ -844,7 +846,7 @@ export default function ProfilePage() {
 													</Link>
 													<span className='text-xs text-zinc-600 flex-shrink-0'>
 														{new Date(rv.created_at).toLocaleDateString(
-															'en-US',
+															lang === 'ru' ? 'ru-RU' : 'en-US',
 															{
 																month: 'short',
 																day: 'numeric',
@@ -871,7 +873,7 @@ export default function ProfilePage() {
 				{/* ── Genre Stats ────────────────────────────────────────── */}
 				{genreStats.length > 0 && (
 					<Section
-						title='Favourite Genres'
+						title={tr.profile.favouriteGenres}
 						icon={
 							<svg
 								className='w-5 h-5'
