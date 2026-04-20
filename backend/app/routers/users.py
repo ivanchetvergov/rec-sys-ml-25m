@@ -1,4 +1,8 @@
-"""Public users router — read-only profile data for user pages."""
+"""Public users router — read-only profile data for user pages.
+
+Movie metadata is NOT stored in interaction tables (migration 009).
+It is enriched on-the-fly from PopularityService (movies.parquet).
+"""
 
 import psycopg2.extras
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,6 +10,7 @@ from pydantic import BaseModel
 
 from app.core.db import get_connection
 from app.routers.auth import get_current_user
+from app.services.popularity_service import PopularityService, get_popularity_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -16,19 +21,9 @@ def _default_avatar_id(user_id: int) -> str:
     return _DEFAULT_AVATARS[abs(int(user_id)) % len(_DEFAULT_AVATARS)]
 
 
-def _ensure_profile_privacy_column(cur) -> None:
-    """Defensive guard for environments where migration history is out of sync."""
-    cur.execute(
-        """
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS is_profile_private BOOLEAN NOT NULL DEFAULT FALSE
-        """
-    )
-
-
 class PublicWatchedItem(BaseModel):
     movie_id: int
-    title: str
+    title: str | None
     genres: str | None
     year: int | None
     avg_rating: float | None
@@ -41,7 +36,7 @@ class PublicWatchedItem(BaseModel):
 
 class PublicWatchlistItem(BaseModel):
     movie_id: int
-    title: str
+    title: str | None
     genres: str | None
     year: int | None
     avg_rating: float | None
@@ -54,7 +49,7 @@ class PublicWatchlistItem(BaseModel):
 
 class PublicUserReview(BaseModel):
     movie_id: int
-    title: str
+    title: str | None
     rating: int
     review_text: str | None
     created_at: str
@@ -85,10 +80,10 @@ class ProfilePrivacyUpdateRequest(BaseModel):
 def get_public_user_profile(
     user_id: int,
     items_limit: int = Query(30, ge=1, le=200),
+    pop_svc: PopularityService = Depends(get_popularity_service),
 ):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            _ensure_profile_privacy_column(cur)
             cur.execute(
                 "SELECT id, login, is_profile_private FROM users WHERE id = %s",
                 (user_id,),
@@ -113,55 +108,32 @@ def get_public_user_profile(
             avg_rating = float(avg_rating) if avg_rating is not None else None
 
             cur.execute(
-                """
-                SELECT movie_id, title, genres, year, avg_rating, num_ratings,
-                       popularity_score, tmdb_id, imdb_id, watched_at
-                FROM watched
-                WHERE user_id = %s
-                ORDER BY watched_at DESC
-                LIMIT %s
-                """,
+                "SELECT movie_id, watched_at FROM watched WHERE user_id = %s ORDER BY watched_at DESC LIMIT %s",
                 (user_id, items_limit),
             )
             watched_rows = cur.fetchall()
 
             cur.execute(
-                """
-                SELECT movie_id, title, genres, year, avg_rating, num_ratings,
-                       popularity_score, tmdb_id, imdb_id, added_at
-                FROM watchlist
-                WHERE user_id = %s
-                ORDER BY added_at DESC
-                LIMIT %s
-                """,
+                "SELECT movie_id, added_at FROM watchlist WHERE user_id = %s ORDER BY added_at DESC LIMIT %s",
                 (user_id, items_limit),
             )
             watchlist_rows = cur.fetchall()
 
             cur.execute(
-                """
-                SELECT movie_id, title, rating, review_text, created_at
-                FROM reviews
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
+                "SELECT movie_id, rating, review_text, created_at FROM reviews WHERE user_id = %s ORDER BY created_at DESC LIMIT %s",
                 (user_id, items_limit),
             )
             review_rows = cur.fetchall()
 
+    def _movie(movie_id: int) -> dict:
+        return pop_svc.get_movie(movie_id) or {}
+
     watched = [
         PublicWatchedItem(
             movie_id=row["movie_id"],
-            title=row["title"],
-            genres=row.get("genres"),
-            year=row.get("year"),
-            avg_rating=row.get("avg_rating"),
-            num_ratings=row.get("num_ratings"),
-            popularity_score=row.get("popularity_score"),
-            tmdb_id=row.get("tmdb_id"),
-            imdb_id=row.get("imdb_id"),
             watched_at=str(row["watched_at"]),
+            **{k: _movie(row["movie_id"]).get(k) for k in
+               ("title", "genres", "year", "avg_rating", "num_ratings", "popularity_score", "tmdb_id", "imdb_id")},
         )
         for row in watched_rows
     ]
@@ -169,15 +141,9 @@ def get_public_user_profile(
     watchlist = [
         PublicWatchlistItem(
             movie_id=row["movie_id"],
-            title=row["title"],
-            genres=row.get("genres"),
-            year=row.get("year"),
-            avg_rating=row.get("avg_rating"),
-            num_ratings=row.get("num_ratings"),
-            popularity_score=row.get("popularity_score"),
-            tmdb_id=row.get("tmdb_id"),
-            imdb_id=row.get("imdb_id"),
             added_at=str(row["added_at"]),
+            **{k: _movie(row["movie_id"]).get(k) for k in
+               ("title", "genres", "year", "avg_rating", "num_ratings", "popularity_score", "tmdb_id", "imdb_id")},
         )
         for row in watchlist_rows
     ]
@@ -185,7 +151,7 @@ def get_public_user_profile(
     reviews = [
         PublicUserReview(
             movie_id=row["movie_id"],
-            title=row["title"],
+            title=_movie(row["movie_id"]).get("title"),
             rating=row["rating"],
             review_text=row.get("review_text"),
             created_at=str(row["created_at"]),
@@ -211,7 +177,7 @@ def get_public_user_profile(
 def get_my_profile_privacy(user: dict = Depends(get_current_user)):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            _ensure_profile_privacy_column(cur)
+
             cur.execute("SELECT is_profile_private FROM users WHERE id = %s", (user["id"],))
             row = cur.fetchone()
             if not row:
@@ -226,7 +192,7 @@ def update_my_profile_privacy(
 ):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            _ensure_profile_privacy_column(cur)
+
             cur.execute(
                 """
                 UPDATE users

@@ -28,6 +28,7 @@ import {
 } from '@/lib/authStore'
 import { AvatarIcon } from '@/lib/avatars'
 import { trackKpi } from '@/lib/kpi'
+import { useTranslation } from '@/lib/useTranslation'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
@@ -165,6 +166,7 @@ interface Props {
 }
 
 export default function MoviePageInteractive({ movie }: Props) {
+	const { tr } = useTranslation()
 	// ── user actions
 	const [watched, setWatched] = useState(false)
 	const [inWatchlist, setInWatchlist] = useState(false)
@@ -253,16 +255,16 @@ export default function MoviePageInteractive({ movie }: Props) {
 		const token = getToken()
 		if (!token) return
 		if (userRating < 1 || userRating > 5) {
-			setSaveError('Please select a rating from 1 to 5 stars before saving.')
+			setSaveError(tr.movie.ratingRequired)
 			return
 		}
 
 		setIsSaving(true)
 		setSaveError(null)
-		const savedReview = await upsertReview(token, movie.id, movie.title, userRating, review)
+		const savedReview = await upsertReview(token, movie.id, userRating, review)
 		if (!savedReview) {
 			setIsSaving(false)
-			setSaveError('Could not save review. Please try again or re-login.')
+			setSaveError(tr.movie.saveError)
 			return
 		}
 
@@ -296,7 +298,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 			{/* ── Your rating + Watched + Watchlist + External links ─────── */}
 			<div className={sectionBox} style={sectionStyle}>
 				<h2 className='text-xs uppercase tracking-widest text-zinc-500 mb-4'>
-					Your rating
+					{tr.movie.yourRating}
 				</h2>
 				<div className='flex flex-wrap items-center justify-between gap-4'>
 					{loggedIn ? (
@@ -316,7 +318,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 										await removeWatchedDB(token, movie.id)
 										setWatched(false)
 									} else {
-										await addWatchedDB(token, movie)
+										await addWatchedDB(token, movie.id)
 										setWatched(true)
 									}
 								}}
@@ -352,7 +354,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 										<path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' />
 									</svg>
 								)}
-								{watched ? 'Watched' : 'Mark watched'}
+								{watched ? tr.movie.watched : tr.movie.markWatched}
 							</button>
 
 							{/* Watchlist */}
@@ -364,7 +366,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 										await apiRemoveWatchlist(token, movie.id)
 										setInWatchlist(false)
 									} else {
-										await apiAddWatchlist(token, movie)
+										await apiAddWatchlist(token, movie.id)
 										setInWatchlist(true)
 									}
 								}}
@@ -385,11 +387,11 @@ export default function MoviePageInteractive({ movie }: Props) {
 								>
 									<path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' />
 								</svg>
-								{inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+								{inWatchlist ? tr.movie.inWatchlist : tr.movie.addWatchlist}
 							</button>
 						</div>
 					) : (
-						<SignInGate action='rate and track this movie' />
+						<SignInGate action={tr.movie.signInAction} />
 					)}
 
 					{/* Right: IMDB + TMDB links */}
@@ -402,7 +404,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 								className='flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-80'
 								style={{ background: '#f5c518', color: '#000' }}
 							>
-								IMDB
+								{tr.movie.imdb}
 							</a>
 						)}
 						{movie.tmdb_id && (
@@ -413,7 +415,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 								className='flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition-opacity hover:opacity-80'
 								style={{ background: '#01b4e4' }}
 							>
-								TMDB
+								{tr.movie.tmdb}
 							</a>
 						)}
 					</div>
@@ -423,14 +425,14 @@ export default function MoviePageInteractive({ movie }: Props) {
 			{/* ── Write review ─────────────────────────────────────────────── */}
 			<div className={sectionBox} style={sectionStyle}>
 				<h2 className='text-xs uppercase tracking-widest text-zinc-500 mb-4'>
-					Your review
+					{tr.movie.yourReview}
 				</h2>
 				{loggedIn ? (
 					<>
 						<textarea
 							value={review}
 							onChange={e => setReview(e.target.value)}
-							placeholder='Share your thoughts about this movie…'
+							placeholder={tr.movie.writeReview}
 							rows={4}
 							className='w-full text-sm text-zinc-200 rounded-xl px-4 py-3 resize-none outline-none focus:ring-1 placeholder-zinc-600'
 							style={{
@@ -447,7 +449,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 								className='px-6 py-2 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
 								style={{ background: 'var(--netflix-red)' }}
 							>
-								{isSaving ? 'Saving...' : 'Save'}
+								{isSaving ? tr.movie.saving : tr.movie.save}
 							</button>
 							{saved && (
 								<span className='text-sm text-green-400 animate-pulse'>
@@ -460,14 +462,14 @@ export default function MoviePageInteractive({ movie }: Props) {
 						</div>
 					</>
 				) : (
-					<SignInGate action='write a review' />
+					<SignInGate action={tr.movie.signInAction} />
 				)}
 			</div>
 
 			{/* ── Community reviews ────────────────────────────────────────── */}
 			<div>
 				<h2 className='text-lg font-bold text-white mb-4'>
-					Community reviews
+					{tr.movie.communityReviews}
 					{communityReviews.length > 0 && (
 						<span className='ml-2 text-sm font-normal text-zinc-500'>
 							({communityReviews.length})
@@ -540,7 +542,7 @@ export default function MoviePageInteractive({ movie }: Props) {
 			{similar.length > 0 && (
 				<div>
 					<div className='flex items-baseline mb-4'>
-						<h2 className='text-lg font-bold text-white'>Similar movies</h2>
+						<h2 className='text-lg font-bold text-white'>{tr.movie.similar}</h2>
 						{similarModel && (
 							<span className='ml-auto text-xs text-zinc-500'>
 								{similarModel === 'als_cosine'

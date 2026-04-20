@@ -1,4 +1,8 @@
-"""Reviews router — CRUD for the authenticated user's reviews."""
+"""Reviews router — CRUD for the authenticated user's reviews.
+
+The `title` column was removed from the reviews table (migration 009).
+Movie metadata is looked up on-the-fly from PopularityService.
+"""
 
 import psycopg2.extras
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.core.db import get_connection
 from app.routers.auth import get_current_user
+from app.services.popularity_service import PopularityService, get_popularity_service
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -20,7 +25,6 @@ def _default_avatar_id(user_id: int) -> str:
 
 class ReviewUpsertRequest(BaseModel):
     movie_id: int
-    title: str
     rating: int = Field(..., ge=1, le=5)
     review_text: str | None = None
 
@@ -29,22 +33,10 @@ class ReviewOut(BaseModel):
     id: int
     user_id: int
     movie_id: int
-    title: str
+    title: str | None
     rating: int
     review_text: str | None
     created_at: str
-
-    @classmethod
-    def from_row(cls, row: dict) -> "ReviewOut":
-        return cls(
-            id=row["id"],
-            user_id=row["user_id"],
-            movie_id=row["movie_id"],
-            title=row["title"],
-            rating=row["rating"],
-            review_text=row.get("review_text"),
-            created_at=str(row["created_at"]),
-        )
 
 
 class MovieReviewOut(BaseModel):
@@ -71,49 +63,68 @@ class MovieReviewOut(BaseModel):
         )
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _to_review_out(row: dict, pop_svc: PopularityService) -> ReviewOut:
+    movie = pop_svc.get_movie(row["movie_id"]) or {}
+    return ReviewOut(
+        id=row["id"],
+        user_id=row["user_id"],
+        movie_id=row["movie_id"],
+        title=movie.get("title"),
+        rating=row["rating"],
+        review_text=row.get("review_text"),
+        created_at=str(row["created_at"]),
+    )
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=list[ReviewOut])
-def get_reviews(user: dict = Depends(get_current_user)):
+def get_reviews(
+    user: dict = Depends(get_current_user),
+    pop_svc: PopularityService = Depends(get_popularity_service),
+):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT * FROM reviews WHERE user_id = %s ORDER BY created_at DESC",
+                "SELECT id, user_id, movie_id, rating, review_text, created_at FROM reviews WHERE user_id = %s ORDER BY created_at DESC",
                 (user["id"],),
             )
             rows = cur.fetchall()
-    return [ReviewOut.from_row(dict(r)) for r in rows]
+    return [_to_review_out(dict(r), pop_svc) for r in rows]
 
 
 @router.post("", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
-def upsert_review(body: ReviewUpsertRequest, user: dict = Depends(get_current_user)):
+def upsert_review(
+    body: ReviewUpsertRequest,
+    user: dict = Depends(get_current_user),
+    pop_svc: PopularityService = Depends(get_popularity_service),
+):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                INSERT INTO reviews (user_id, movie_id, title, rating, review_text)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO reviews (user_id, movie_id, rating, review_text)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (user_id, movie_id) DO UPDATE
-                    SET title       = EXCLUDED.title,
-                        rating      = EXCLUDED.rating,
+                    SET rating      = EXCLUDED.rating,
                         review_text = EXCLUDED.review_text,
                         created_at  = now()
-                RETURNING *
+                RETURNING id, user_id, movie_id, rating, review_text, created_at
                 """,
-                (user["id"], body.movie_id, body.title, body.rating, body.review_text),
+                (user["id"], body.movie_id, body.rating, body.review_text),
             )
             row = cur.fetchone()
 
             # Rating/review implies the movie is watched.
             cur.execute(
                 """
-                INSERT INTO watched (user_id, movie_id, title)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id, movie_id) DO UPDATE
-                    SET title = EXCLUDED.title,
-                        watched_at = now()
+                INSERT INTO watched (user_id, movie_id)
+                VALUES (%s, %s)
+                ON CONFLICT (user_id, movie_id) DO UPDATE SET watched_at = now()
                 """,
-                (user["id"], body.movie_id, body.title),
+                (user["id"], body.movie_id),
             )
 
             # Once rated, it should not remain in watchlist.
@@ -121,7 +132,7 @@ def upsert_review(body: ReviewUpsertRequest, user: dict = Depends(get_current_us
                 "DELETE FROM watchlist WHERE user_id = %s AND movie_id = %s",
                 (user["id"], body.movie_id),
             )
-    return ReviewOut.from_row(dict(row))
+    return _to_review_out(dict(row), pop_svc)
 
 
 @router.get("/movie/{movie_id}", response_model=list[MovieReviewOut])
@@ -130,10 +141,7 @@ def get_movie_reviews(
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """Public reviews for a movie with review author metadata.
-
-    Returns reviews that contain either text or a rating.
-    """
+    """Public reviews for a movie with review author metadata."""
     with get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(

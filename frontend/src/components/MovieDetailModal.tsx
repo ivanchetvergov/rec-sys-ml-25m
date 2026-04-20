@@ -11,6 +11,7 @@ import {
 } from '@/lib/api'
 import { getToken, isLoggedIn } from '@/lib/authStore'
 import { trackKpi } from '@/lib/kpi'
+import { useTranslation } from '@/lib/useTranslation'
 import { useCallback, useEffect, useState } from 'react'
 
 interface Props {
@@ -60,6 +61,7 @@ const pillClass =
 	'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-opacity hover:opacity-80'
 
 export function MovieDetailModal({ movie, onClose }: Props) {
+	const { tr } = useTranslation()
 	const [details, setDetails] = useState<MovieDetails | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [userRating, setUserRating] = useState(0)
@@ -133,16 +135,16 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 		const token = getToken()
 		if (!token) return
 		if (userRating < 1 || userRating > 5) {
-			setSaveError('Please select a rating from 1 to 5 stars before saving.')
+			setSaveError(tr.movie.ratingRequired)
 			return
 		}
 
 		setIsSaving(true)
 		setSaveError(null)
-		const savedReview = await upsertReview(token, movie.id, movie.title, userRating, review)
+		const savedReview = await upsertReview(token, movie.id, userRating, review)
 		if (!savedReview) {
 			setIsSaving(false)
-			setSaveError('Could not save review. Please try again or re-login.')
+			setSaveError(tr.movie.saveError)
 			return
 		}
 
@@ -287,26 +289,26 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 							{movie.avg_rating != null && (
 								<div className='flex flex-col'>
 									<span className='text-zinc-500 text-xs uppercase tracking-wide'>
-										Avg rating
+										{tr.movie.avgRating}
 									</span>
 									<span className='text-white font-bold text-lg'>
 										{movie.avg_rating.toFixed(1)}
 									</span>
 									<span className='text-zinc-500 text-xs'>
-										{movie.num_ratings?.toLocaleString()} reviews
+										{movie.num_ratings?.toLocaleString()} {tr.movie.ratings}
 									</span>
 								</div>
 							)}
 							{details?.tmdb_rating != null && (
 								<div className='flex flex-col'>
 									<span className='text-zinc-500 text-xs uppercase tracking-wide'>
-										TMDB
+										{tr.movie.tmdb}
 									</span>
 									<span className='text-white font-bold text-lg'>
 										{details.tmdb_rating.toFixed(1)}
 									</span>
 									<span className='text-zinc-500 text-xs'>
-										{details.tmdb_votes?.toLocaleString()} votes
+										{details.tmdb_votes?.toLocaleString()} {tr.movie.votes}
 									</span>
 								</div>
 							)}
@@ -318,14 +320,14 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 						{!loggedIn ? (
 							<div className='flex flex-col items-center gap-3 py-6'>
 								<p className='text-sm text-zinc-400'>
-									Sign in to rate, review and track movies
+									{tr.movie.signInToInteract}
 								</p>
 								<a
 									href='/login'
 									className='px-5 py-2 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-80'
 									style={{ background: 'var(--netflix-red)' }}
 								>
-									Sign In
+									{tr.auth.signIn}
 								</a>
 							</div>
 						) : (
@@ -333,7 +335,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 								{/* Your rating + Watched + Watchlist — all on one row */}
 								<div>
 									<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
-										Your rating
+										{tr.movie.yourRating}
 									</p>
 									<div className='flex items-center gap-3 flex-wrap'>
 										<StarRating value={userRating} onChange={setUserRating} />
@@ -346,7 +348,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 													await removeWatchedDB(token, movie.id)
 													setWatched(false)
 												} else {
-													await addWatchedDB(token, movie)
+													await addWatchedDB(token, movie.id)
 													setWatched(true)
 												}
 											}}
@@ -382,7 +384,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 													<path d='M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z' />
 												</svg>
 											)}{' '}
-											Watched
+											{tr.movie.watched}
 										</button>
 										{/* Watchlist */}
 										<button
@@ -393,7 +395,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 													await apiRemoveWatchlist(token, movie.id)
 													setInWatchlist(false)
 												} else {
-													await apiAddWatchlist(token, movie)
+													await apiAddWatchlist(token, movie.id)
 													setInWatchlist(true)
 												}
 											}}
@@ -414,7 +416,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 											>
 												<path d='M6.3 2.84A1.5 1.5 0 0 0 5 4.312v11.376a.5.5 0 0 0 .77.419l4.23-2.791 4.23 2.79a.5.5 0 0 0 .77-.418V4.313a1.5 1.5 0 0 0-1.3-1.472A42.5 42.5 0 0 0 10 2.5a42.5 42.5 0 0 0-3.7.34Z' />
 											</svg>
-											{inWatchlist ? 'In Watchlist' : 'Watchlist'}
+											{inWatchlist ? tr.movie.inWatchlist : tr.movie.watchlist}
 										</button>
 									</div>
 								</div>
@@ -422,12 +424,12 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 								{/* Review textarea */}
 								<div>
 									<p className='text-xs uppercase tracking-wide text-zinc-500 mb-2'>
-										Your review
+										{tr.movie.yourReview}
 									</p>
 									<textarea
 										value={review}
 										onChange={e => setReview(e.target.value)}
-										placeholder='Write a few words about the movie...'
+										placeholder={tr.movie.writeReviewModal}
 										rows={3}
 										className='w-full text-sm text-zinc-300 rounded-lg px-3 py-2.5 resize-none outline-none focus:ring-1 placeholder-zinc-600'
 										style={{
@@ -449,11 +451,11 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 											className='px-4 py-1.5 rounded-full font-semibold text-sm text-white transition-opacity disabled:opacity-40 disabled:cursor-not-allowed'
 											style={{ background: 'var(--netflix-red)' }}
 										>
-											{isSaving ? 'Saving...' : 'Save'}
+											{isSaving ? tr.movie.saving : tr.movie.save}
 										</button>
 										{saved && (
 											<span className='text-sm text-green-400 animate-pulse'>
-												Saved!
+												{tr.movie.saved}
 											</span>
 										)}
 										{saveError && (
@@ -533,7 +535,7 @@ export function MovieDetailModal({ movie, onClose }: Props) {
 													d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
 												/>
 											</svg>
-											Full page
+											{tr.movie.fullPage}
 										</a>
 									</div>
 								</div>

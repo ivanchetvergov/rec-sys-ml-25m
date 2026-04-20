@@ -2,12 +2,14 @@
 
 import { loginUser } from '@/lib/api'
 import { setAuth } from '@/lib/authStore'
+import { useTranslation } from '@/lib/useTranslation'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function LoginPage() {
 	const router = useRouter()
+	const { tr } = useTranslation()
 	const [login, setLogin] = useState('')
 	const [password, setPassword] = useState('')
 	const [error, setError] = useState<{
@@ -37,7 +39,6 @@ export default function LoginPage() {
 			className='min-h-screen flex items-center justify-center px-4'
 			style={{ background: 'var(--bg-primary)' }}
 		>
-			{/* Subtle red glow behind the form */}
 			<div
 				className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none'
 				style={{
@@ -54,7 +55,6 @@ export default function LoginPage() {
 					boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
 				}}
 			>
-				{/* Logo */}
 				<div className='mb-8'>
 					<Link href='/'>
 						<span
@@ -66,29 +66,28 @@ export default function LoginPage() {
 					</Link>
 				</div>
 
-				<h1 className='text-3xl font-bold text-white mb-2'>Sign In</h1>
+				<h1 className='text-3xl font-bold text-white mb-2'>{tr.login.heading}</h1>
 				<p className='text-zinc-400 text-sm mb-8'>
-					New to RecSys?{' '}
+					{tr.login.newTo}{' '}
 					<Link
 						href='/register'
 						className='text-white hover:underline font-medium'
 					>
-						Create an account
+						{tr.login.createAccount}
 					</Link>
 				</p>
 
 				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					{/* Login */}
 					<div className='flex flex-col gap-1'>
 						<label className='text-xs text-zinc-400 font-medium uppercase tracking-wider'>
-							Username
+							{tr.login.username}
 						</label>
 						<input
 							type='text'
 							autoComplete='username'
 							value={login}
 							onChange={e => setLogin(e.target.value)}
-							placeholder='your_username'
+							placeholder={tr.login.usernamePlaceholder}
 							required
 							className={`rounded-lg px-4 py-3 text-sm text-white outline-none transition-all ${
 								error?.field === 'login'
@@ -101,17 +100,16 @@ export default function LoginPage() {
 						)}
 					</div>
 
-					{/* Password */}
 					<div className='flex flex-col gap-1'>
 						<label className='text-xs text-zinc-400 font-medium uppercase tracking-wider'>
-							Password
+							{tr.login.password}
 						</label>
 						<input
 							type='password'
 							autoComplete='current-password'
 							value={password}
 							onChange={e => setPassword(e.target.value)}
-							placeholder='••••••••'
+							placeholder={tr.login.passwordPlaceholder}
 							required
 							className={`rounded-lg px-4 py-3 text-sm text-white outline-none transition-all ${
 								error?.field === 'password'
@@ -124,14 +122,12 @@ export default function LoginPage() {
 						)}
 					</div>
 
-					{/* Generic error */}
 					{error && !error.field && (
 						<div className='rounded-lg px-4 py-3 text-sm text-red-300 bg-red-950/40 border border-red-800'>
 							{error.message}
 						</div>
 					)}
 
-					{/* Submit */}
 					<button
 						type='submit'
 						disabled={loading}
@@ -140,48 +136,32 @@ export default function LoginPage() {
 					>
 						{loading ? (
 							<span className='flex items-center justify-center gap-2'>
-								<svg
-									className='w-4 h-4 animate-spin'
-									viewBox='0 0 24 24'
-									fill='none'
-								>
-									<circle
-										className='opacity-25'
-										cx='12'
-										cy='12'
-										r='10'
-										stroke='currentColor'
-										strokeWidth='4'
-									/>
-									<path
-										className='opacity-75'
-										fill='currentColor'
-										d='M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z'
-									/>
+								<svg className='w-4 h-4 animate-spin' viewBox='0 0 24 24' fill='none'>
+									<circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' />
+									<path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z' />
 								</svg>
-								Signing in…
+								{tr.login.signingIn}
 							</span>
 						) : (
-							'Sign In'
+							tr.login.submit
 						)}
 					</button>
 				</form>
 
-				{/* Divider */}
 				<div className='flex items-center gap-3 my-6'>
 					<div className='flex-1 h-px bg-zinc-800' />
-					<span className='text-xs text-zinc-600'>or</span>
+					<span className='text-xs text-zinc-600'>{tr.login.or}</span>
 					<div className='flex-1 h-px bg-zinc-800' />
 				</div>
 
 				<p className='text-center text-xs text-zinc-600'>
-					By signing in, you agree to our{' '}
+					{tr.login.legalText}{' '}
 					<span className='text-zinc-400 hover:underline cursor-pointer'>
-						Terms of Use
+						{tr.login.terms}
 					</span>{' '}
-					and{' '}
+					{tr.login.and}{' '}
 					<span className='text-zinc-400 hover:underline cursor-pointer'>
-						Privacy Policy
+						{tr.login.privacy}
 					</span>
 					.
 				</p>

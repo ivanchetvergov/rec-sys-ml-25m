@@ -3,6 +3,7 @@
 import { MovieCard } from "@/components/MovieCard";
 import type { Movie } from "@/lib/api";
 import { fetchAllMovies } from "@/lib/api";
+import { useTranslation } from "@/lib/useTranslation";
 import { useEffect, useMemo, useState } from "react";
 
 interface Props {
@@ -12,21 +13,9 @@ interface Props {
 
 type SortKey = "popularity" | "rating" | "year_desc" | "year_asc" | "reviews";
 
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-    { value: "popularity", label: "Popularity" },
-    { value: "rating", label: "Rating" },
-    { value: "reviews", label: "Most reviewed" },
-    { value: "year_desc", label: "Newest first" },
-    { value: "year_asc", label: "Oldest first" },
-];
 
-const MIN_REVIEWS_OPTIONS = [
-    { label: "Any", value: 0 },
-    { label: "100+", value: 100 },
-    { label: "1k+", value: 1_000 },
-    { label: "10k+", value: 10_000 },
-    { label: "50k+", value: 50_000 },
-];
+
+
 
 function pill(active: boolean) {
     return {
@@ -108,6 +97,21 @@ function RangeInput({
 }
 
 export function CatalogSection({ initialMovies = [], onSelect }: Props) {
+    const { tr } = useTranslation();
+    const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+        { value: "popularity", label: tr.catalog.sortPopularity },
+        { value: "rating", label: tr.catalog.sortRating },
+        { value: "reviews", label: tr.catalog.sortReviews },
+        { value: "year_desc", label: tr.catalog.sortNewest },
+        { value: "year_asc", label: tr.catalog.sortOldest },
+    ];
+    const MIN_REVIEWS_OPTIONS = [
+        { label: tr.catalog.any, value: 0 },
+        { label: "100+", value: 100 },
+        { label: "1k+", value: 1_000 },
+        { label: "10k+", value: 10_000 },
+        { label: "50k+", value: 50_000 },
+    ];
     const [query, setQuery] = useState("");
     const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
     const [yearMin, setYearMin] = useState<number | null>(null);
@@ -217,20 +221,20 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
     if (minRating > 0)
         activeChips.push({ label: `★ ≥ ${minRating.toFixed(1)}`, onRemove: () => setMinRating(0) });
     if (minReviews > 0)
-        activeChips.push({ label: `${(minReviews >= 1000 ? (minReviews / 1000).toFixed(0) + "k" : minReviews)}+ reviews`, onRemove: () => setMinReviews(0) });
+        activeChips.push({ label: `${(minReviews >= 1000 ? (minReviews / 1000).toFixed(0) + "k" : minReviews)}+`, onRemove: () => setMinReviews(0) });
     if (sortBy !== "popularity")
-        activeChips.push({ label: `Sort: ${SORT_OPTIONS.find((o) => o.value === sortBy)?.label}`, onRemove: () => setSortBy("popularity") });
+        activeChips.push({ label: tr.catalog.sortBy + SORT_OPTIONS.find((o) => o.value === sortBy)?.label, onRemove: () => setSortBy("popularity") });
 
     return (
         <section id="catalog" className="pb-20">
             {/* ── Header ─────────────────────────────────────────────── */}
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h2 className="text-xl font-bold text-white">Browse Catalog</h2>
+                    <h2 className="text-xl font-bold text-white">{tr.catalog.heading}</h2>
                     <p className="text-sm text-zinc-500 mt-0.5">
                         {catalogLoading
-                            ? "Loading full catalog…"
-                            : `${filtered.length.toLocaleString()} of ${movies.length.toLocaleString()} movies`}
+                            ? tr.catalog.loading
+                            : tr.catalog.moviesCount(filtered.length, movies.length)}
                     </p>
                 </div>
                 {anyFilterActive && (
@@ -238,7 +242,7 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                         onClick={clearAll}
                         className="text-xs text-zinc-500 hover:text-white transition-colors underline underline-offset-2"
                     >
-                        Clear all filters
+                        {tr.catalog.clearFilters}
                     </button>
                 )}
             </div>
@@ -255,7 +259,7 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search by title..."
+                        placeholder={tr.catalog.searchPlaceholder}
                         className="w-full pl-9 pr-10 py-2.5 rounded-lg text-sm text-zinc-200 outline-none focus:ring-1"
                         style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
                     />
@@ -279,7 +283,7 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 8h12M9 12h6M11 16h2" />
                     </svg>
-                    Filters
+                    {tr.catalog.filters}
                     {anyFilterActive && (
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--netflix-red)" }} />
                     )}
@@ -317,10 +321,10 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                 >
                     {/* ── Year range ── */}
                     <div>
-                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">Year</p>
+                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">{tr.catalog.year}</p>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-xs text-zinc-500 mb-1 block">From</label>
+                                <label className="text-xs text-zinc-500 mb-1 block">{tr.catalog.from}</label>
                                 <input
                                     type="number"
                                     value={effectiveYearMin}
@@ -332,7 +336,7 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                                 />
                             </div>
                             <div>
-                                <label className="text-xs text-zinc-500 mb-1 block">To</label>
+                                <label className="text-xs text-zinc-500 mb-1 block">{tr.catalog.to}</label>
                                 <input
                                     type="number"
                                     value={effectiveYearMax}
@@ -348,21 +352,21 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
 
                     {/* ── Min rating ── */}
                     <div>
-                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">Minimum rating</p>
+                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">{tr.catalog.minRating}</p>
                         <RangeInput
-                            label="Avg rating"
+                            label={tr.catalog.avgRating}
                             value={minRating}
                             min={0}
                             max={5}
                             step={0.1}
-                            format={(v) => v === 0 ? "Any" : `★ ${v.toFixed(1)}`}
+                            format={(v) => v === 0 ? tr.catalog.any : `★ ${v.toFixed(1)}`}
                             onChange={setMinRating}
                         />
                     </div>
 
                     {/* ── Min reviews ── */}
                     <div>
-                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">Minimum reviews</p>
+                        <p className="text-xs uppercase tracking-wider text-zinc-500 mb-3 font-semibold">{tr.catalog.minReviews}</p>
                         <div className="flex flex-wrap gap-2">
                             {MIN_REVIEWS_OPTIONS.map((opt) => (
                                 <button
@@ -381,10 +385,10 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                     <div>
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">
-                                Genres
+                                {tr.catalog.genres}
                                 {selectedGenres.size > 0 && (
                                     <span className="ml-2 normal-case font-normal text-zinc-400">
-                                        ({selectedGenres.size} selected — all must match)
+                                        {tr.catalog.genresSelected(selectedGenres.size)}
                                     </span>
                                 )}
                             </p>
@@ -393,7 +397,7 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
                                     onClick={() => setSelectedGenres(new Set())}
                                     className="text-xs text-zinc-500 hover:text-white transition-colors"
                                 >
-                                    Clear genres
+                                    {tr.catalog.clearGenres}
                                 </button>
                             )}
                         </div>
@@ -425,13 +429,13 @@ export function CatalogSection({ initialMovies = [], onSelect }: Props) {
             {/* ── Grid ───────────────────────────────────────────────── */}
             {catalogLoading && movies.length === 0 ? (
                 <div className="h-64 flex items-center justify-center text-zinc-500 text-sm">
-                    Loading catalog…
+                    {tr.catalog.loadingGrid}
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="py-20 text-center">
-                    <p className="text-zinc-400 text-base font-semibold mb-2">No movies match your filters</p>
+                    <p className="text-zinc-400 text-base font-semibold mb-2">{tr.catalog.noResults}</p>
                     <button onClick={clearAll} className="text-sm text-zinc-500 hover:text-white transition-colors underline underline-offset-2">
-                        Clear all filters
+                        {tr.catalog.clearFilters}
                     </button>
                 </div>
             ) : (
