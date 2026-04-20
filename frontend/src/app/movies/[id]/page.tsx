@@ -1,8 +1,8 @@
 import { fetchMovie, fetchMovieDetails } from "@/lib/api";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import MoviePageInteractive from "./MoviePageInteractive";
+import { BackButton, RatingsBlock } from "./MoviePageLabels";
 
 interface PageProps {
     params: { id: string };
@@ -49,15 +49,7 @@ export default async function MoviePage({ params }: PageProps) {
 
                 {/* Back button */}
                 <div className="absolute top-20 left-0 right-0 mx-auto flex" style={{ maxWidth: 1200, padding: "0 32px" }}>
-                    <Link
-                        href="/"
-                        className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white transition-colors"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                        </svg>
-                        Back
-                    </Link>
+                    <BackButton />
                 </div>
             </div>
 
@@ -127,32 +119,13 @@ export default async function MoviePage({ params }: PageProps) {
                         )}
 
                         {/* Ratings */}
-                        <div
-                            className="flex flex-wrap gap-8 px-6 py-4 rounded-xl mt-auto"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-                        >
-                            {movie.avg_rating != null && (
-                                <div>
-                                    <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1">Avg rating</p>
-                                    <p className="text-3xl font-black text-yellow-400">{movie.avg_rating.toFixed(1)}</p>
-                                    <p className="text-xs text-zinc-500 mt-0.5">{movie.num_ratings?.toLocaleString()} reviews</p>
-                                </div>
-                            )}
-                            {details?.tmdb_rating != null && (
-                                <div>
-                                    <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1">TMDB score</p>
-                                    <p className="text-3xl font-black text-blue-400">{details.tmdb_rating.toFixed(1)}</p>
-                                    <p className="text-xs text-zinc-500 mt-0.5">{details.tmdb_votes?.toLocaleString()} votes</p>
-                                </div>
-                            )}
-                            {movie.popularity_score != null && (
-                                <div>
-                                    <p className="text-xs uppercase tracking-wider text-zinc-500 mb-1">Popularity</p>
-                                    <p className="text-3xl font-black text-white">{movie.popularity_score.toFixed(2)}</p>
-                                    <p className="text-xs text-zinc-500 mt-0.5">internal score</p>
-                                </div>
-                            )}
-                        </div>
+                        <RatingsBlock
+                            avgRating={movie.avg_rating}
+                            numRatings={movie.num_ratings}
+                            tmdbRating={details?.tmdb_rating}
+                            tmdbVotes={details?.tmdb_votes}
+                            popularityScore={movie.popularity_score}
+                        />
                     </div>
                 </div>
 

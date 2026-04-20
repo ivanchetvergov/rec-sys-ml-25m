@@ -13,6 +13,7 @@ import {
 	setCurrentAvatar,
 	switchAccount,
 } from '@/lib/authStore'
+import { useTranslation } from '@/lib/useTranslation'
 import { AVATAR_OPTIONS, AvatarIcon } from '@/lib/avatars'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -20,6 +21,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export default function Header() {
 	const router = useRouter()
+	const { tr, lang, setLang } = useTranslation()
 	const [user, setUser] = useState<AuthUser | null>(null)
 	const [accounts, setAccounts] = useState<StoredAccount[]>([])
 
@@ -108,8 +110,8 @@ export default function Header() {
 		let cancelled = false
 		const ids = searchResults.map(m => m.id)
 		ids.forEach(id => {
-			if (posters[id] !== undefined) return // already loaded or loading
-			setPosters(p => ({ ...p, [id]: null })) // mark as loading
+			if (posters[id] !== undefined) return
+			setPosters(p => ({ ...p, [id]: null }))
 			fetchMovieDetails(id).then(d => {
 				if (!cancelled) setPosters(p => ({ ...p, [id]: d?.poster_url ?? '' }))
 			})
@@ -124,7 +126,6 @@ export default function Header() {
 		clearAuth()
 		setMenuOpen(false)
 		setSwitchOpen(false)
-		// If still logged in (auto-switched to another account), stay; otherwise go home
 		if (!isLoggedIn()) router.push('/')
 	}
 
@@ -159,16 +160,16 @@ export default function Header() {
 						href='/'
 						className='hover:text-white transition-colors font-medium text-white'
 					>
-						Home
+						{tr.nav.home}
 					</a>
 					<a href='/#popular' className='hover:text-white transition-colors'>
-						Trending
+						{tr.nav.trending}
 					</a>
 					<a href='/#catalog' className='hover:text-white transition-colors'>
-						Catalog
+						{tr.nav.catalog}
 					</a>
 					<a href='/profile' className='hover:text-white transition-colors'>
-						My Profile
+						{tr.nav.profile}
 					</a>
 				</nav>
 			</div>
@@ -247,7 +248,7 @@ export default function Header() {
 									type='text'
 									value={searchQuery}
 									onChange={e => setSearchQuery(e.target.value)}
-									placeholder='Search movies…'
+									placeholder={tr.search.placeholder}
 									className='flex-1 bg-transparent text-lg text-white placeholder-zinc-500 outline-none'
 								/>
 								{searchQuery ? (
@@ -375,9 +376,9 @@ export default function Header() {
 								) : searchQuery.trim() ? (
 									/* No results */
 									<div className='px-5 py-8 flex flex-col items-center gap-2'>
-										<p className='text-sm text-zinc-500'>No movies found</p>
+										<p className='text-sm text-zinc-500'>{tr.search.noResults}</p>
 										<p className='text-xs text-zinc-600'>
-											Try a different spelling
+											{tr.search.tryDifferent}
 										</p>
 									</div>
 								) : (
@@ -398,9 +399,9 @@ export default function Header() {
 											/>
 										</svg>
 										<p className='text-sm text-zinc-400'>
-											Search for movies by title
+											{tr.search.title}
 										</p>
-										<p className='text-xs text-zinc-600'>Tolerant to typos</p>
+										<p className='text-xs text-zinc-600'>{tr.search.hint}</p>
 									</div>
 								)}
 							</div>
@@ -506,7 +507,7 @@ export default function Header() {
 													d='M17 20h5v-2a4 4 0 0 0-4-4h-1M9 20H4v-2a4 4 0 0 1 4-4h1m8-4a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM6 8a4 4 0 1 1 0-8 4 4 0 0 1 0 8z'
 												/>
 											</svg>
-											Switch account
+											{tr.auth.switchAccount}
 										</div>
 										{/* chevron */}
 										<svg
@@ -558,7 +559,7 @@ export default function Header() {
 											{accounts.filter(a => a.user.id !== user.id).length ===
 												0 && (
 													<p className='px-4 py-2 text-xs text-zinc-600'>
-														No other accounts saved
+														{tr.auth.noOtherAccounts}
 													</p>
 												)}
 
@@ -594,14 +595,14 @@ export default function Header() {
 													</svg>
 												</div>
 												<span className='text-sm text-zinc-400'>
-													Add account
+													{tr.auth.addAccount}
 												</span>
 											</Link>
 
-											{/* Avatar picker moved from Profile page */}
+											{/* Avatar picker */}
 											<div className='px-4 pt-2'>
 												<p className='text-[11px] uppercase tracking-wide text-zinc-500 mb-2'>
-													Avatar
+													{tr.auth.avatar}
 												</p>
 												<div className='grid grid-cols-5 gap-1.5'>
 													{AVATAR_OPTIONS.map(option => {
@@ -628,9 +629,35 @@ export default function Header() {
 													})}
 												</div>
 											</div>
+
+											{/* ── Language toggle ──────────────────────────── */}
+											<div className='px-4 pt-3 pb-1'>
+												<p className='text-[11px] uppercase tracking-wide text-zinc-500 mb-2'>
+													{lang === 'ru' ? 'Язык' : 'Language'}
+												</p>
+												<div className='flex gap-1.5'>
+													{(['en', 'ru'] as const).map(l => (
+														<button
+															key={l}
+															onClick={() => setLang(l)}
+															className='flex-1 py-1 rounded-md text-xs font-semibold transition-colors'
+															style={{
+																background: lang === l
+																	? 'rgba(229,9,20,0.18)'
+																	: 'rgba(255,255,255,0.06)',
+																border: `1px solid ${lang === l ? 'rgba(229,9,20,0.5)' : 'rgba(255,255,255,0.12)'}`,
+																color: lang === l ? '#fff' : '#71717a',
+															}}
+														>
+															{l === 'en' ? 'EN' : 'RU'}
+														</button>
+													))}
+												</div>
+											</div>
 										</div>
 									)}
 								</div>
+
 								{/* ── Admin Panel (admin only) ──────────────────────── */}
 								{user.role === 'admin' && (
 									<Link
@@ -656,7 +683,7 @@ export default function Header() {
 											/>
 											<circle cx='12' cy='12' r='3' />
 										</svg>
-										Admin Panel
+										{tr.auth.adminPanel}
 									</Link>
 								)}
 
@@ -683,7 +710,7 @@ export default function Header() {
 											d='M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z'
 										/>
 									</svg>
-									My profile
+									{tr.auth.myProfile}
 								</Link>
 
 								{/* ── Sign out ──────────────────────────────────────── */}
@@ -706,7 +733,7 @@ export default function Header() {
 											d='M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v1'
 										/>
 									</svg>
-									Sign out
+									{tr.auth.signOut}
 								</button>
 							</div>
 						)}
@@ -717,7 +744,7 @@ export default function Header() {
 							className='px-4 py-1.5 rounded-md text-sm font-bold text-white transition-all hover:opacity-80'
 							style={{ background: 'var(--netflix-red)' }}
 						>
-							Sign In
+							{tr.auth.signIn}
 						</button>
 					</Link>
 				)}

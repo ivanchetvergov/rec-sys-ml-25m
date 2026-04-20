@@ -4,6 +4,7 @@ import type { Movie } from "@/lib/api";
 import { fetchMovieDetails, upsertReview } from "@/lib/api";
 import { getToken, isLoggedIn } from "@/lib/authStore";
 import { trackKpi } from "@/lib/kpi";
+import { useTranslation } from "@/lib/useTranslation";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -27,6 +28,7 @@ const CARD_GRADIENTS = [
 
 export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
     const router = useRouter();
+    const { tr } = useTranslation();
     const genres = movie.genres?.split("|").slice(0, 2) ?? [];
     const gradient = CARD_GRADIENTS[movie.id % CARD_GRADIENTS.length];
 
@@ -64,9 +66,9 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
         const token = requireToken();
         if (!token) return;
         setBusy("rating");
-        const ok = await upsertReview(token, movie.id, movie.title, rating, "");
+        const ok = await upsertReview(token, movie.id, rating, "");
         if (ok) {
-            setQuickNote(`Rated ${rating}★`);
+            setQuickNote(`${tr.movie.yourRating}: ${rating}★`);
             await trackKpi('rating_submit', 'card_quick_actions', movie.id);
         }
         setBusy(null);
@@ -154,7 +156,7 @@ export function MovieCard({ movie, rank, onSelect, onExplain }: Props) {
                     </div>
                     {movie.num_ratings != null && (
                         <span className="text-xs text-zinc-400">
-                            {(movie.num_ratings / 1000).toFixed(0)}k ratings
+                            {(movie.num_ratings / 1000).toFixed(0)}k {tr.movie.ratings}
                         </span>
                     )}
 

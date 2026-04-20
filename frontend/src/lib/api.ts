@@ -281,7 +281,7 @@ export async function fetchWatchlist(token: string): Promise<WatchlistItem[]> {
 
 export async function addToWatchlist(
 	token: string,
-	movie: Movie,
+	movieId: number,
 ): Promise<WatchlistItem | null> {
 	try {
 		const res = await fetch(`${API_URL}/api/watchlist`, {
@@ -290,17 +290,7 @@ export async function addToWatchlist(
 				'Content-Type': 'application/json',
 				Authorization: `Bearer ${token}`,
 			},
-			body: JSON.stringify({
-				movie_id: movie.id,
-				title: movie.title,
-				genres: movie.genres,
-				year: movie.year,
-				avg_rating: movie.avg_rating,
-				num_ratings: movie.num_ratings,
-				popularity_score: movie.popularity_score,
-				tmdb_id: movie.tmdb_id,
-				imdb_id: movie.imdb_id,
-			}),
+			body: JSON.stringify({ movie_id: movieId }),
 			cache: 'no-store',
 		})
 		if (!res.ok) {
@@ -498,7 +488,6 @@ export async function updateMyProfilePrivacy(
 export async function upsertReview(
 	token: string,
 	movieId: number,
-	title: string,
 	rating: number,
 	reviewText: string,
 ): Promise<Review | null> {
@@ -515,7 +504,6 @@ export async function upsertReview(
 			},
 			body: JSON.stringify({
 				movie_id: movieId,
-				title,
 				rating,
 				review_text: reviewText.trim() || null,
 			}),
@@ -583,7 +571,7 @@ export async function fetchWatched(token: string): Promise<WatchedItem[]> {
 
 export async function addWatchedDB(
 	token: string,
-	movie: Movie,
+	movieId: number,
 ): Promise<WatchedItem | null> {
 	try {
 		const res = await fetch(`${API_URL}/api/watched`, {
@@ -592,17 +580,7 @@ export async function addWatchedDB(
 				'Content-Type': 'application/json',
 				Authorization: `Bearer ${token}`,
 			},
-			body: JSON.stringify({
-				movie_id: movie.id,
-				title: movie.title,
-				genres: movie.genres,
-				year: movie.year,
-				avg_rating: movie.avg_rating,
-				num_ratings: movie.num_ratings,
-				popularity_score: movie.popularity_score,
-				tmdb_id: movie.tmdb_id,
-				imdb_id: movie.imdb_id,
-			}),
+			body: JSON.stringify({ movie_id: movieId }),
 			cache: 'no-store',
 		})
 		if (!res.ok) {
