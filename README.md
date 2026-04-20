@@ -1,70 +1,70 @@
 # RecSys
 
-Two-stage movie recommender system with full stack implementation:
+Двухэтапная рекомендательная система фильмов с полным стеком:
 
-- Offline ML pipeline (feature store, training, evaluation, artifacts)
-- Online FastAPI backend (personal recommendations, similar items, user actions)
-- Next.js frontend (catalog, recommendations, profile, review flows)
+- Offline ML-контур: feature store, обучение, оценка, артефакты
+- Online backend на FastAPI: персональные рекомендации, похожие фильмы, пользовательские действия
+- Frontend на Next.js: каталог, рекомендации, профиль, рейтинги и отзывы
 
-## 1. Scope
+## 1. Назначение
 
-The project solves three tasks end-to-end:
+Проект решает три задачи:
 
-1. Build recommendation artifacts from MovieLens data.
-2. Serve recommendations and user workflows through API.
-3. Provide web UI for interaction and feedback collection.
+1. Строит артефакты рекомендаций из данных MovieLens.
+1. Обслуживает рекомендации и пользовательские сценарии через API.
+1. Предоставляет веб-интерфейс для взаимодействия и сбора обратной связи.
 
-## 2. Architecture
+## 2. Архитектура
 
-Data flow:
+Поток данных:
 
-1. Raw CSV -> preprocessing -> feature store (`data/processed/feature_store`).
-2. Train iALS + CatBoost ranker -> artifacts (`data/models/two_stage_ranker`).
-3. Build movie catalog and similarity index (`data/processed/movies.parquet`, `data/processed/similarity_index.parquet`).
-4. Backend loads artifacts at startup and serves requests.
-5. Frontend consumes API and writes user feedback (`watched`, `watchlist`, `reviews`) to Postgres.
+1. Сырые CSV -> препроцессинг -> feature store (`data/processed/feature_store`).
+1. Обучение iALS + CatBoost ranker -> артефакты (`data/models/two_stage_ranker`).
+1. Построение каталога фильмов и индекса похожести (`data/processed/movies.parquet`, `data/processed/similarity_index.parquet`).
+1. Backend загружает артефакты на старте и обрабатывает запросы.
+1. Frontend вызывает API и записывает обратную связь (`watched`, `watchlist`, `reviews`) в Postgres.
 
-Key docs:
+Ключевая документация:
 
 - `docs/ARCHITECTURE.md`
 - `docs/ml-pipeline.md`
 - `docs/backend.md`
 - `docs/frontend.md`
 
-## 3. Repository Layout
+## 3. Структура репозитория
 
 ```text
 .
-├── backend/                    # FastAPI app, routers, services, migrations
-├── frontend/                   # Next.js app
-├── src/                        # ML pipeline, models, training scripts
+├── backend/                    # FastAPI: роутеры, сервисы, миграции
+├── frontend/                   # Next.js приложение
+├── src/                        # ML pipeline, модели, скрипты обучения
 ├── data/
-│   ├── raw/                    # Raw datasets
-│   ├── processed/              # Feature store, movies catalog, similarity index
-│   └── models/                 # Trained model artifacts
-├── docs/                       # Technical documentation
+│   ├── raw/                    # Сырые данные
+│   ├── processed/              # Feature store, каталог, индекс похожести
+│   └── models/                 # Обученные артефакты моделей
+├── docs/                       # Техническая документация
 ├── docker-compose.yml
 ├── Makefile
 └── requirements.txt
 ```
 
-## 4. Requirements
+## 4. Требования
 
 - Python 3.11+
 - Node.js 18+
-- Docker + Docker Compose (for full web stack)
+- Docker и Docker Compose (для полного запуска стека)
 - `make`
 
-Notes:
+Примечания:
 
-- `Makefile` contains hardcoded Python paths. Before using it, update `PYTHON` and `PIP` to your local environment.
-- Raw MovieLens files must be present under `data/raw/ml-25m`.
+- В `Makefile` используются локальные пути к Python. Перед запуском обновите `PYTHON` и `PIP` под ваше окружение.
+- Исходные файлы MovieLens должны находиться в `data/raw/ml-25m`.
 
-## 5. Quick Start
+## 5. Быстрый старт
 
-### Option A: Full stack in Docker (recommended)
+### Вариант A: полный стек в Docker (рекомендуется)
 
-1. Prepare artifacts:
+1. Подготовьте артефакты:
 
 ```bash
 make preprocess
@@ -72,46 +72,46 @@ make train-ranker
 make build-similarity
 ```
 
-1. Start web stack:
+1. Запустите стек:
 
 ```bash
 make web
 ```
 
-1. Open:
+1. Откройте:
 
-- Frontend via nginx: `http://localhost`
-- API docs: `http://localhost/api/docs`
+- Frontend через nginx: `http://localhost`
+- Swagger API: `http://localhost/api/docs`
 
-1. Stop:
+1. Остановите стек:
 
 ```bash
 make web-down
 ```
 
-### Option B: Run backend/frontend locally
+### Вариант B: локальный запуск backend/frontend
 
-1. Install Python dependencies:
+1. Установите Python-зависимости:
 
 ```bash
 make install
 ```
 
-1. Start backend:
+1. Запустите backend:
 
 ```bash
 make backend
 ```
 
-1. Start frontend (separate terminal):
+1. Запустите frontend (в отдельном терминале):
 
 ```bash
 make frontend
 ```
 
-## 6. Core Workflows
+## 6. Основные рабочие сценарии
 
-### 6.1 Data and artifacts
+### 6.1 Подготовка данных и артефактов
 
 ```bash
 make preprocess
@@ -120,7 +120,7 @@ make train-ranker
 make build-similarity
 ```
 
-### 6.2 Model baselines and experiments
+### 6.2 Базовые модели и эксперименты
 
 ```bash
 make train-popularity
@@ -129,7 +129,7 @@ make train-als
 make train-ranker
 ```
 
-Sample runs:
+Быстрые прогоны на сэмпле:
 
 ```bash
 make train-popularity-sample
@@ -144,57 +144,57 @@ make train-ranker-sample
 make mlflow-ui
 ```
 
-Default UI: `http://localhost:5000`
+UI по умолчанию: `http://localhost:5000`
 
-## 7. Backend API Surface
+## 7. API backend
 
-Main route groups under `/api`:
+Основные группы роутов под `/api`:
 
 - `movies`: popular, personal, search, similar, details
 - `auth`: register, login, me
 - `watched`
 - `watchlist`
 - `reviews`
-- `users` (public profile + privacy)
-- `admin` (stats)
+- `users` (публичный профиль и приватность)
+- `admin` (статистика)
 
-Entry point: `backend/app/main.py`
+Точка входа backend: `backend/app/main.py`
 
-## 8. Recommendation Runtime Behavior
+## 8. Runtime-поведение рекомендаций
 
-- Primary model: two-stage (`iALS` candidates -> `CatBoost` rerank)
-- Online adaptation: user fold-in and post-ranking from fresh interactions
-- Degradation mode: `popularity_fallback` if model/artifacts unavailable
+- Базовый режим: двухэтапная модель (`iALS` кандидаты -> `CatBoost` rerank)
+- Online-адаптация: user fold-in и пост-ранжирование на свежих взаимодействиях
+- Режим деградации: `popularity_fallback`, если модель/артефакты недоступны
 
-Model marker in API responses:
+Маркер модели в ответах API:
 
 - `two_stage`
 - `two_stage_live_foldin`
 - `popularity_fallback`
 
-## 9. Data Lifecycle Summary
+## 9. Жизненный цикл данных
 
-1. Raw interactions enter preprocessing.
-2. Temporal split and no-leakage features are built.
-3. Training artifacts are produced and versioned.
-4. Backend serves online recommendations from loaded artifacts.
-5. User feedback goes to Postgres and influences online ranking immediately.
-6. Full model refresh happens on next retraining cycle.
+1. Взаимодействия поступают в препроцессинг.
+1. Выполняется временной split и построение фич без leakage.
+1. Формируются и версионируются артефакты обучения.
+1. Backend обслуживает online-рекомендации из загруженных артефактов.
+1. Пользовательский feedback записывается в Postgres и влияет на online-ранжирование.
+1. Полное обновление модели выполняется в следующем цикле retrain.
 
-## 10. Troubleshooting
+## 10. Типовые проблемы
 
-1. Empty personal recommendations: check model artifacts in `data/models/two_stage_ranker` and backend logs for fallback warnings.
+1. Пустые персональные рекомендации: проверьте артефакты в `data/models/two_stage_ranker` и логи backend на fallback.
 
-1. Similar movies unavailable: rebuild index with `make build-similarity`.
+1. Не работают похожие фильмы: пересоберите индекс командой `make build-similarity`.
 
-1. Backend fails at startup: validate Postgres connectivity and verify migrations in `backend/migrations` were applied.
+1. Backend не стартует: проверьте подключение к Postgres и применение миграций в `backend/migrations`.
 
-1. Frontend cannot reach API: check `NEXT_PUBLIC_API_URL` and nginx routing in Docker setup.
+1. Frontend не видит API: проверьте `NEXT_PUBLIC_API_URL` и маршрутизацию nginx в Docker-конфигурации.
 
-## 11. Cleanup
+## 11. Очистка
 
 ```bash
 make clean
 ```
 
-This removes processed feature store and MLflow artifacts.
+Команда удаляет обработанные данные feature store и артефакты MLflow.
