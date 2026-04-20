@@ -13,7 +13,7 @@
 
 - Similar items индекс из ALS item factors (cosine)
 - Quasi-live post-ranking в backend
-- Live fold-in user embedding без полного retrain
+- Live fold-in  user embedding без полного retrain
 
 ## 2. ImplicitALSRecommender
 
